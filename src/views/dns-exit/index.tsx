@@ -1,56 +1,12 @@
 import { useState } from "react";
-import { NumberTicker } from "@/components/number-ticker";
-import { OverflowDetailText } from "@/components/overflow-detail-text";
-import {
-  PageHeading,
-  DataTable,
-  IpText,
-  ActionButton,
-  ErrorNotice,
-  Pending,
-} from "@/components/toolkit";
-import { Card, CardContent } from "@/components/ui/card";
+import { ErrorNotice } from "@/components/toolkit";
 import { t } from "@/i18n";
+import { queryKeys } from "@/lib/query-keys";
+import { DnsRetryButton, DnsStage } from "@/views/egress/dns-stage";
+import { getBrowserIp, getDomesticIp, getGeo } from "@/views/home/api";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
-import { detectDnsExits, dnsSampleCount, type DnsProgress } from "./api";
+import { detectDnsExits, type DnsProgress } from "./api";
 
-type Resolver = DnsProgress["results"][number];
-const columns: ColumnDef<Resolver>[] = [
-  {
-    id: "ip",
-    header: t("DNS 出口 IP"),
-    cell: ({ row }) => <IpText ip={row.original.ip} />,
-  },
-  {
-    accessorKey: "geo",
-    header: t("归属地 / 运营商"),
-    cell: ({ row }) => (
-      <OverflowDetailText text={row.original.geo} title={t("DNS 归属信息")} />
-    ),
-  },
-  {
-    id: "sources",
-    header: t("检测来源"),
-    cell: ({ row }) => (
-      <div className="flex flex-wrap gap-1.5">
-        {row.original.sources.map((source) => (
-          <span
-            key={source}
-            className="whitespace-nowrap rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
-          >
-            {source}
-          </span>
-        ))}
-      </div>
-    ),
-  },
-  {
-    id: "samples",
-    header: t("观察次数"),
-    cell: ({ row }) => <NumberTicker value={row.original.samples} />,
-  },
-];
 export default function DnsExitPage() {
   const [round, setRound] = useState(0);
   const client = useQueryClient();
@@ -73,55 +29,76 @@ export default function DnsExitPage() {
   const state = query.isFetching
     ? progress.data
     : (query.data ?? progress.data);
+  const overseas = useQuery({
+    queryKey: queryKeys.home.browserIp(),
+    queryFn: ({ signal }) => getBrowserIp(4, signal),
+    staleTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const domestic = useQuery({
+    queryKey: queryKeys.egress.domestic(),
+    queryFn: ({ signal }) => getDomesticIp(signal),
+    staleTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const overseasIp = overseas.data?.ip;
+  const domesticIp =
+    domestic.data?.ip && domestic.data.ip !== overseasIp
+      ? domestic.data.ip
+      : undefined;
+  const overseasGeo = useQuery({
+    queryKey: queryKeys.geo.byIp(overseasIp),
+    enabled: Boolean(overseasIp),
+    queryFn: ({ signal }) => getGeo(overseasIp!, signal),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const domesticGeo = useQuery({
+    queryKey: queryKeys.geo.byIp(domesticIp),
+    enabled: Boolean(domesticIp),
+    queryFn: ({ signal }) => getGeo(domesticIp!, signal),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const httpExits = [
+    domesticIp
+      ? {
+          ip: domesticIp,
+          ...domestic.data,
+          ...domesticGeo.data,
+          path: "domestic" as const,
+        }
+      : undefined,
+    overseasIp
+      ? {
+          ip: overseasIp,
+          ...overseas.data,
+          ...overseasGeo.data,
+          path: "overseas" as const,
+        }
+      : undefined,
+  ].filter((item): item is NonNullable<typeof item> => Boolean(item?.ip));
   return (
-    <>
-      <PageHeading title={t("DNS 出口查询")} description="" />
-      <div className="toolbar">
-        <ActionButton
-          busy={query.isFetching}
-          onClick={() => setRound((n) => n + 1)}
-        >
-          {query.isFetching ? t("检测中...") : t("重新检测")}
-        </ActionButton>
-        <span className="small muted">
-          <NumberTicker value={state?.count ?? 0} />/{dnsSampleCount}
-          {t("次采样 ·")} {state?.failed ?? 0}
-          {t("次失败")}
-        </span>
-      </div>
-      <ErrorNotice error={query.error} />
-      {state && state.failed > 0 && (
-        <p className="small muted mb-3">
-          {t("部分探测失败，不代表没有 DNS 泄漏。")}{" "}
-          {Object.entries(state.failures)
-            .map(([source, count]) => `${source}: ${count}`)
-            .join(" · ")}
-        </p>
-      )}
-      <Card>
-        <CardContent>
-          <DataTable
-            className="dns-exit-table"
-            data={state?.results ?? []}
-            columns={columns}
-            getRowId={(row) => row.ip}
-            animateChanges={false}
-            animateEntries
-            empty={
-              query.isFetching ? (
-                <Pending>{t("正在等待解析结果...")}</Pending>
-              ) : (
-                t("未检测到 DNS 出口")
-              )
-            }
+    <div className="space-y-3">
+      <DnsStage
+        state={state}
+        busy={query.isFetching}
+        httpExits={httpExits}
+        action={
+          <DnsRetryButton
+            busy={query.isFetching}
+            onClick={() => setRound((n) => n + 1)}
           />
-        </CardContent>
-      </Card>
-      <p className="small muted mt-3">
+        }
+      />
+      <ErrorNotice error={query.error} />
+      <p className="text-xs text-muted-foreground leading-relaxed mt-2">
         {t(
-          "相同出口合并显示；出口数量取决于实际解析路径，不代表设备配置了相同数量的 DNS。",
+          "每个 HTTP 出口单独一棵子树。国内探测挂在国内出口下，海外探测挂在海外出口下。",
         )}
       </p>
-    </>
+    </div>
   );
 }

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { t, locale } from "@/i18n";
+import { queryKeys } from "@/lib/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   runPing,
@@ -40,8 +41,15 @@ const regions = [
   { id: "AF", name: t("非洲") },
   { id: "OC", name: t("大洋洲") },
 ];
-export default function PingPage() {
+export default function PingPage({
+  host: hostProp,
+  hideSearch = false,
+}: {
+  host?: string;
+  hideSearch?: boolean;
+} = {}) {
   const [params, setParams] = useSearchParams();
+  const host = (hostProp ?? params.get("host") ?? "").trim();
   const [scope, setScope] = useState("world");
   const [fullCoverage, setFullCoverage] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -53,11 +61,11 @@ export default function PingPage() {
   const [stopped, setStopped] = useState(false);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => {
-    document.title = t("全球 Ping - IP 网络工具");
+    if (!hideSearch) document.title = t("各地快不快 - IP 网络工具");
     return () => controller.current?.abort();
-  }, []);
+  }, [hideSearch]);
   const catalog = useQuery({
-    queryKey: ["ping-node-catalog-v3"],
+    queryKey: queryKeys.ping.catalog(),
     queryFn: ({ signal }) => getPingNodes(signal),
     staleTime: 300_000,
     retry: false,
@@ -88,37 +96,56 @@ export default function PingPage() {
     },
     retry: false,
   });
+  const start = (nextHost = host) => {
+    const value = nextHost.trim();
+    if (!value) return;
+    if (!hideSearch) setParams({ host: value });
+    setProgress(undefined);
+    setStopped(false);
+    query.reset();
+    query.mutate({
+      host: value,
+      preferred: scope !== "custom" && !fullCoverage,
+      nodes: scope === "custom" ? selected : presetNodes.map((node) => node.id),
+    });
+  };
   const data = progress ?? query.data;
   const done =
     data?.results.filter((item) =>
       ["finished", "failed"].includes(item.result.status),
     ).length ?? 0;
   return (
-    <div className="lookup-page ping-page">
-      <div className="lookup-search-card">
-        <LookupForm
-          grouped
-          value={params.get("host") ?? ""}
-          placeholder={t("输入 IP 地址或域名")}
-          label={t("开始")}
-          busy={query.isPending || catalog.isPending}
-          onSubmit={(host) => {
-            setParams({ host });
-            setProgress(undefined);
-            setStopped(false);
-            query.reset();
-            query.mutate({
-              host,
-              preferred: scope !== "custom" && !fullCoverage,
-              nodes:
-                scope === "custom"
-                  ? selected
-                  : presetNodes.map((node) => node.id),
-            });
-          }}
-        />
-      </div>
-      <Card className="mt-3">
+    <div
+      className={
+        hideSearch ? "ping-page space-y-3" : "lookup-page ping-page space-y-3"
+      }
+    >
+      {hideSearch ? (
+        <div className="lookup-ping-start flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">
+            {t("从所选地区测延迟和丢包，不会自动开始。")}
+          </p>
+          <Button
+            size="sm"
+            disabled={!host || query.isPending || catalog.isPending || !planned}
+            onClick={() => start()}
+          >
+            {query.isPending ? t("测量中…") : t("开始测量")}
+          </Button>
+        </div>
+      ) : (
+        <div className="lookup-search-card cyber-cockpit-card hud-frame">
+          <LookupForm
+            grouped
+            value={host}
+            placeholder={t("输入 IP 地址或域名")}
+            label={t("开始")}
+            busy={query.isPending || catalog.isPending}
+            onSubmit={(value) => start(value)}
+          />
+        </div>
+      )}
+      <Card className="cyber-cockpit-card">
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-1">
             {[{ id: "world", name: t("全球检测") }, ...regions].map(
@@ -127,6 +154,11 @@ export default function PingPage() {
                   key={region.id}
                   size="sm"
                   variant={scope === region.id ? "secondary" : "ghost"}
+                  className={
+                    scope === region.id
+                      ? "bg-primary/15 text-primary border border-primary/30 font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }
                   disabled={query.isPending}
                   onClick={() => {
                     setScope(region.id);
@@ -147,6 +179,11 @@ export default function PingPage() {
                 <Button
                   size="sm"
                   variant={scope === "custom" ? "secondary" : "ghost"}
+                  className={
+                    scope === "custom"
+                      ? "bg-primary/15 text-primary border border-primary/30 font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }
                   disabled={query.isPending}
                 >
                   {t("自定义地区")}

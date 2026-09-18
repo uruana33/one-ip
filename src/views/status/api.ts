@@ -1,4 +1,4 @@
-import { endpoint } from "@/lib/network";
+import { createConcurrencyLimiter, endpoint } from "@/lib/network";
 
 export interface ServiceStatus {
   status: { indicator: string; description: string };
@@ -14,5 +14,12 @@ export interface ServiceStatus {
   checkedAt?: string;
   source: string;
 }
+
+/** Keep category expansion and manual refresh from opening a request storm. */
+export const statusConcurrencyLimit = 6;
+const statusLimiter = createConcurrencyLimiter(statusConcurrencyLimit);
+
 export const getStatus = (id: string, signal?: AbortSignal) =>
-  endpoint<ServiceStatus>(`/status/${id}`, { signal });
+  statusLimiter.run(signal, () =>
+    endpoint<ServiceStatus>(`/status/${id}`, { signal }),
+  );

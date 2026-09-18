@@ -1,7 +1,8 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { LatencyBadge } from "@/components/latency-badge";
 import { SiteLogo } from "@/components/site-logo";
-import { IpText, Pending } from "@/components/toolkit";
+import { ActionButton, IpText, Pending } from "@/components/toolkit";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -13,89 +14,47 @@ import {
 } from "@/components/ui/table";
 import { useSortAnimation } from "@/hooks/use-sort-animation";
 import { t } from "@/i18n";
-import { trace } from "@/lib/network";
-import { withDetectionAnimation } from "@/views/browser/with-feedback";
-import { useQueries, useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { aiPlatforms } from "./platforms";
-import { probeAiDomain } from "./probe";
+import type { DefaultExitSource } from "./default-exit";
+import { AI_OVERVIEW_SAMPLE_COUNT } from "./probe";
+import { useAiNetworkQueries } from "./use-ai-network";
+
+function defaultExitLabel(source: DefaultExitSource | undefined): string {
+  if (!source) return t("HTTP 默认出口 · 待确认");
+  if (source.id === "webrtc") return t("UDP 观察出口");
+  if (source.id === "worker") return t("HTTP 默认出口 · 本站接口");
+  if (source.id === "domestic") return t("HTTP 出口 · 国内 CDN");
+  return t("HTTP 默认出口 · api.ip.sb");
+}
 
 export function AiNetworkCheck({
   domains,
   children,
+  sampleCount = AI_OVERVIEW_SAMPLE_COUNT,
 }: {
   domains: string[];
   children?: ReactNode;
+  sampleCount?: number;
 }) {
-  const [refreshing, setRefreshing] = useState(false);
-  const query = useQuery({
-    queryKey: ["ai-network", "v3", ...domains],
-    queryFn: ({ signal }) =>
-      Promise.all(domains.map((domain) => probeAiDomain(domain, signal))),
-    staleTime: 60_000,
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
-  const platforms = domains.map((domain) =>
-    aiPlatforms.find((platform) => platform.domain === domain),
+  const { probeQuery, busy, items, refresh } = useAiNetworkQueries(
+    domains,
+    sampleCount,
   );
-  const exits = useQueries({
-    queries: platforms.map((platform, index) => ({
-      queryKey: [platform?.id ?? domains[index], "exit"],
-      enabled: Boolean(platform?.traceDomain),
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        trace(platform!.traceDomain!, signal),
-      staleTime: 60_000,
-      retry: false,
-      refetchOnWindowFocus: false,
-    })),
-  });
-  const busy =
-    refreshing || query.isFetching || exits.some((exit) => exit.isFetching);
-  const orderedDomains = domains.map((domain, index) => ({
-    domain,
-    result: query.data?.[index],
-    exit: exits[index],
-  }));
-  if (!busy && query.data)
-    orderedDomains.sort(
-      (a, b) => (a.result?.median ?? Infinity) - (b.result?.median ?? Infinity),
-    );
-  const sortRef = useSortAnimation(
-    orderedDomains.map(({ domain }) => domain).join("|"),
-  );
+  const sortRef = useSortAnimation(items.map(({ domain }) => domain).join("|"));
   return (
     <Card className="ai-network-check">
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
           <CardTitle>{t("网络连通性")}</CardTitle>
-          <button
+          <ActionButton
             type="button"
-            className="shrink-0 text-xs font-normal text-primary enabled:hover:underline underline-offset-4"
-            disabled={busy}
-            onClick={async () => {
-              setRefreshing(true);
-              try {
-                const [next] = await withDetectionAnimation(() =>
-                  Promise.all([
-                    query.refetch({ throwOnError: true }),
-                    ...exits
-                      .filter((_, index) => platforms[index]?.traceDomain)
-                      .map((exit) => exit.refetch()),
-                  ]),
-                );
-                if (next.data?.every((result) => result.median != null))
-                  toast.success(t("网络检测完成"));
-                else toast.warning(t("检测完成，部分站点未获取到响应"));
-              } catch {
-                toast.error(t("网络检测失败，请重试"));
-              } finally {
-                setRefreshing(false);
-              }
-            }}
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            busy={busy}
+            onClick={() => void refresh()}
           >
-            {busy ? <Pending>{t("检测中…")}</Pending> : t("重新检测")}
-          </button>
+            {busy ? t("检测中…") : t("重新检测")}
+          </ActionButton>
         </div>
       </CardHeader>
       <CardContent>
@@ -109,46 +68,107 @@ export function AiNetworkCheck({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orderedDomains.map(({ domain, result, exit }) => (
-                <TableRow key={domain} data-sort-id={domain}>
-                  <TableCell className="ai-connectivity-site">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <SiteLogo website={`https://${domain}`} />
-                      <span>{domain}</span>
-                    </span>
-                  </TableCell>
-                  <TableCell className="ai-connectivity-exit text-muted-foreground">
-                    <span className="sm:hidden">{t("出口 IP：")} </span>
-                    {exit.isFetching ? (
-                      <Pending>{t("检测中…")}</Pending>
-                    ) : exit.data?.ip ? (
-                      <IpText ip={exit.data.ip} />
-                    ) : (
-                      <span title={t("未获取到出口，可能受跨域或连接限制。")}>
-                        {t("暂不可用")}
+              {items.map(({ domain, result, exit, platform, defaultExit }) => {
+                const isPlatformExit = Boolean(platform?.traceDomain);
+                const isKnownPlatform = Boolean(platform);
+                const exitKind = isPlatformExit
+                  ? t("平台实测出口")
+                  : !isKnownPlatform
+                    ? t("出口暂不可用")
+                    : defaultExit?.verdict === "split"
+                      ? t("观察到分流")
+                      : defaultExitLabel(defaultExit?.displaySource);
+                const exitTitle = isPlatformExit
+                  ? t(
+                      "通过该平台可读取的 trace 端点测得，反映本次访问该平台端点的出口。",
+                    )
+                  : !isKnownPlatform
+                    ? t("该域名未配置平台出口检测。")
+                    : defaultExit?.verdict === "split"
+                      ? t(
+                          "不同线路返回不同出口（{0}），存在分流；访问该平台的实际出口可能与显示值不同。",
+                          [
+                            defaultExit.sources
+                              .map(
+                                (source) =>
+                                  `${source.label}: ${source.ip ?? "—"}`,
+                              )
+                              .join(" · "),
+                          ],
+                        )
+                      : defaultExit?.displaySource?.transport === "udp"
+                        ? t(
+                            "仅 WebRTC/STUN 返回公网地址；这是 UDP 观察出口，不等于该 AI 平台的 HTTP 出口。",
+                          )
+                        : t(
+                            "无实测接口的平台显示 HTTP 默认出口来源；分流环境下不代表平台专属出口。",
+                          );
+                return (
+                  <TableRow key={domain} data-sort-id={domain}>
+                    <TableCell className="ai-connectivity-site">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <SiteLogo website={`https://${domain}`} />
+                        <span>{domain}</span>
                       </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="ai-connectivity-latency text-right">
-                    {query.isFetching ? (
-                      <Pending>{t("检测中…")}</Pending>
-                    ) : result?.median != null ? (
-                      <span title={result.description}>
-                        <LatencyBadge result={result} running={false} />
+                    </TableCell>
+                    <TableCell className="ai-connectivity-exit text-muted-foreground">
+                      <span className="ai-exit-kind" title={exitTitle}>
+                        {exitKind}
                       </span>
-                    ) : (
-                      <span
-                        className="text-xs text-muted-foreground"
-                        title={result?.description}
-                      >
-                        {result?.status === "restricted"
-                          ? t("检测受限")
-                          : t("未确认")}
-                      </span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+                      {exit.pending ? (
+                        <Pending>{t("检测中…")}</Pending>
+                      ) : isKnownPlatform &&
+                        defaultExit?.verdict === "split" ? (
+                        defaultExit.sources
+                          .filter((source) => source.ip)
+                          .map((source) => (
+                            <div key={source.id} className="text-xs">
+                              <span className="muted">
+                                {defaultExitLabel(source)}:{" "}
+                              </span>
+                              <IpText ip={source.ip} />
+                            </div>
+                          ))
+                      ) : exit.ip ? (
+                        <IpText ip={exit.ip} />
+                      ) : isPlatformExit ? (
+                        <span title={t("未获取到出口，可能受跨域或连接限制。")}>
+                          {t("暂不可用")}
+                        </span>
+                      ) : (
+                        <span
+                          title={t(
+                            "未获取到浏览器出口，可能受跨域或连接限制。",
+                          )}
+                        >
+                          {t("检测失败")}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="ai-connectivity-latency text-right">
+                      {probeQuery.isPending ? (
+                        <Pending>{t("检测中…")}</Pending>
+                      ) : result?.median != null ? (
+                        <span title={result.description}>
+                          <LatencyBadge
+                            result={result}
+                            running={probeQuery.isFetching}
+                          />
+                        </span>
+                      ) : (
+                        <span
+                          className="text-xs text-muted-foreground"
+                          title={result?.description}
+                        >
+                          {result?.status === "restricted"
+                            ? t("检测受限")
+                            : t("未确认")}
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -157,7 +177,20 @@ export function AiNetworkCheck({
             "检测的是站点资源响应，不等于登录或对话可用；跨站限制和超时不会判为“未连通”。",
           )}
         </p>
-        {query.error && (
+        <p className="small muted">
+          {t(
+            "无实测接口的平台会标注 HTTP 默认出口、UDP 观察出口或分流；这些结果说明探测来源看到的地址，不等于平台专属出口。",
+          )}
+        </p>
+        <p className="ai-network-privacy small muted">
+          <span>
+            {t(
+              "本页会从当前浏览器直接请求目标站点、出口回显服务和部分 WebRTC/STUN 服务；这些第三方请求可能看到你的出口 IP，且不会发送账号凭据。",
+            )}
+          </span>{" "}
+          <Link to="/privacy">{t("查看数据来源与隐私说明")}</Link>
+        </p>
+        {probeQuery.error && (
           <p className="small text-destructive">
             {t("网络检测失败，请重试。")}
           </p>

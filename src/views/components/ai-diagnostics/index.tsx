@@ -16,9 +16,11 @@ import {
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { t, locale } from "@/i18n";
+import { queryKeys } from "@/lib/query-keys";
 import { AiNetworkCheck } from "@/views/ai/network-check";
 import { AiPlatformLinks } from "@/views/ai/platform-links";
 import { aiPlatforms } from "@/views/ai/platforms";
+import { AI_DETAIL_SAMPLE_COUNT } from "@/views/ai/probe";
 import { claudeApi } from "@/views/claude/api";
 import { claudeHistoryAtom } from "@/views/claude/store";
 import { gptApi } from "@/views/gpt/api";
@@ -33,25 +35,24 @@ export default function AiDiagnostics({ kind }: { kind: "claude" | "gpt" }) {
     kind === "claude" ? claudeHistoryAtom : gptHistoryAtom,
   );
   const domestic = useQuery({
-    queryKey: ["domestic-ip"],
+    queryKey: queryKeys.egress.domestic(),
     queryFn: ({ signal }) => api.domestic(signal),
     retry: false,
   });
   const cf = useQuery({
-    queryKey: ["cf-exit"],
+    queryKey: queryKeys.egress.cloudflare(),
     queryFn: ({ signal }) => api.cloudflare(signal),
     retry: false,
   });
   const exit = useQuery({
-    queryKey:
-      kind === "claude" ? ["claude-domain-exit", "claude.ai"] : [kind, "exit"],
+    queryKey: queryKeys.ai.exit(kind),
     staleTime: 60_000,
     queryFn: ({ signal }) => api.exit(signal),
     retry: false,
   });
   const ip = exit.data?.ip;
   const geo = useQuery({
-    queryKey: ["geo", ip],
+    queryKey: queryKeys.geo.byIp(ip),
     enabled: !!ip,
     queryFn: ({ signal }) => api.geo(ip!, signal),
     retry: false,
@@ -148,9 +149,10 @@ export default function AiDiagnostics({ kind }: { kind: "claude" | "gpt" }) {
         <AiNetworkCheck
           domains={
             kind === "claude"
-              ? ["claude.ai", "anthropic.com"]
+              ? ["claude.ai", "api.anthropic.com"]
               : ["chatgpt.com", "api.openai.com"]
           }
+          sampleCount={AI_DETAIL_SAMPLE_COUNT}
         >
           <p className="small muted mt-3">
             {t("浏览器 HTTP 探测，不代表账号可用或模型权限。")}

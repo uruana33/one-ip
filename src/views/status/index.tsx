@@ -1,24 +1,19 @@
-import { useState } from "react";
+import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AnimatedValue } from "@/components/animated-value";
 import { NumberTicker } from "@/components/number-ticker";
 import { SiteLogo } from "@/components/site-logo";
-import {
-  PageHeading,
-  Pending,
-  ToolCard,
-  DataTable,
-} from "@/components/toolkit";
-import { Badge } from "@/components/ui/badge";
+import { PageHeading, Pending } from "@/components/toolkit";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
-import { UnderlineHover } from "@/components/underline-hover";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { t, locale } from "@/i18n";
-import { useQueries } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
+import { queryKeys } from "@/lib/query-keys";
+import {
+  useQueries,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 import { getStatus } from "./api";
+import type { ServiceStatus } from "./api";
+import { statusLoadBatch, statusLoadIds } from "./loading";
 import { statusOrder } from "./order";
 import rawservices from "./services.json";
 
@@ -28,13 +23,6 @@ const services = rawservices.map((item) => ({
   note: item.note ? t(item.note) : item.note,
 }));
 
-const componentLabels: Record<string, string> = {
-  operational: t("正常运行"),
-  degraded_performance: t("性能下降"),
-  partial_outage: t("部分故障"),
-  major_outage: t("严重故障"),
-  under_maintenance: t("维护中"),
-};
 const labels: Record<string, string> = {
   none: t("正常运行"),
   minor: t("轻微故障"),
@@ -42,397 +30,396 @@ const labels: Record<string, string> = {
   critical: t("重大故障"),
   maintenance: t("维护中"),
 };
+
+const GROUP_ORDER = [
+  "AI",
+  "云服务",
+  "网络基础设施",
+  "开发",
+  "数据服务",
+  "监控与安全",
+  "消息与邮件",
+  "媒体与内容",
+  "协作与办公",
+  "支付与电商",
+  "VPS",
+  "社区",
+] as const;
+
+const GROUP_SUBTITLE: Record<(typeof GROUP_ORDER)[number], string> = {
+  AI: "AI PLATFORMS",
+  云服务: "CLOUD & HOSTING",
+  网络基础设施: "NETWORK & EDGE",
+  开发: "DEV TOOLS",
+  数据服务: "DATA SERVICES",
+  监控与安全: "OBSERVABILITY & SECURITY",
+  消息与邮件: "MESSAGING & EMAIL",
+  媒体与内容: "MEDIA & CONTENT",
+  协作与办公: "COLLABORATION & WORK",
+  支付与电商: "PAYMENTS & COMMERCE",
+  VPS: "VPS / SERVERS",
+  社区: "COMMUNITY",
+};
+
+type ServiceRow = (typeof services)[number] & {
+  requested: boolean;
+  query: UseQueryResult<ServiceStatus, Error>;
+};
+
+function severityRank(row: ServiceRow): number {
+  if (!row.url) return 6;
+  switch (row.query.data?.status?.indicator) {
+    case "critical":
+      return 0;
+    case "major":
+      return 1;
+    case "minor":
+      return 2;
+    case "maintenance":
+      return 3;
+    case "none":
+      return 4;
+    default:
+      return 5;
+  }
+}
+
+function indicatorOf(row: ServiceRow): string {
+  if (!row.url) return "none-integrated";
+  return row.query.data?.status?.indicator ?? "unknown";
+}
+
+function statusText(row: ServiceRow): string {
+  if (row.requested && row.url && row.query.isPending) return t("查询中…");
+  if (!row.url) return t("未接入");
+  return labels[row.query.data?.status?.indicator ?? ""] ?? t("待确认");
+}
+
+function SpectrumBar({ row }: { row: ServiceRow }) {
+  const indicator = indicatorOf(row);
+  const loading = row.requested && row.url && !row.query.data;
+  return (
+    <a
+      className={`sw-bar sw-${indicator}${loading ? " sw-bar-loading" : ""}`}
+      title={`${row.name} — ${statusText(row)}`}
+      aria-label={t("前往 {0} 官方状态页", [row.name])}
+      href={row.page}
+      target="_blank"
+      rel="noreferrer"
+    />
+  );
+}
+
+function FlipCard({
+  row,
+  index,
+  focused,
+}: {
+  row: ServiceRow;
+  index: number;
+  focused: boolean;
+}) {
+  const indicator = indicatorOf(row);
+  const fetching = row.requested && row.query.isFetching;
+  const incidents = row.query.data?.incidents?.length ?? 0;
+  const fetchedAt = row.query.data?.fetchedAt;
+  return (
+    <a
+      className={`sw-flip sw-${indicator}${focused ? " sw-flip-focus" : ""}`}
+      style={{ animationDelay: `${Math.min(index, 14) * 40}ms` }}
+      href={row.page}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={t("前往 {0} 官方状态页", [row.name])}
+    >
+      <span className="sw-flip-top">
+        <i
+          className={`sw-block${fetching ? " sw-block-loading" : ""}`}
+          aria-hidden="true"
+        />
+        <SiteLogo
+          src={row.icon}
+          website={row.page}
+          className="size-4 shrink-0 rounded-sm"
+        />
+        <span className="sw-flip-name" title={row.name}>
+          {row.name}
+        </span>
+        {incidents > 0 && (
+          <span className="sw-flip-incidents">
+            {incidents}
+            {t("个事件")}
+          </span>
+        )}
+      </span>
+      <span className="sw-flip-bottom">
+        <span className="sw-flip-status">
+          {fetching && !row.query.data ? (
+            <Pending>{t("查询中…")}</Pending>
+          ) : (
+            statusText(row)
+          )}
+        </span>
+        <span className="sw-flip-time">
+          {fetchedAt
+            ? new Date(fetchedAt).toLocaleTimeString(locale, {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "——"}
+        </span>
+      </span>
+    </a>
+  );
+}
+
 export default function StatusPage() {
-  const mobile = useIsMobile();
+  const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
-  const [detailId, setDetailId] = useState<string | null>(() => {
-    const id = params.get("service");
-    return services.some((service) => service.id === id) ? id : null;
-  });
-  const filter = params.get("group") ?? "全部";
+  const focusId = params.get("service");
+  const focusService = services.find((service) => service.id === focusId);
+  const filter = params.get("group") ?? focusService?.group ?? "";
+  const loadScope = filter || "全部";
+  const loadBatch = statusLoadBatch(
+    services,
+    (service) => {
+      const state = queryClient.getQueryState(
+        queryKeys.status.service(service.id),
+      );
+      return state?.status === "success" || state?.status === "error";
+    },
+    loadScope,
+  );
+  const requestedIds = useMemo(
+    () => statusLoadIds(services, loadScope, focusId, loadBatch),
+    [focusId, loadBatch, loadScope],
+  );
   const queries = useQueries({
     queries: services.map((s) => ({
-      queryKey: ["service-status", s.id],
-      enabled: Boolean(s.url),
+      queryKey: queryKeys.status.service(s.id),
+      enabled: Boolean(s.url) && requestedIds.has(s.id),
       queryFn: ({ signal }: { signal: AbortSignal }) => getStatus(s.id, signal),
       retry: false,
       staleTime: 60_000,
       refetchInterval: 120_000,
     })),
   });
-  const pending = queries.some((q) => q.isFetching);
-  const rows = services
-    .map((service, i) => ({ ...service, query: queries[i] }))
-    .filter((s) => filter === "全部" || s.group === filter);
-  const sections = [
-    [
-      t("故障 / 维护"),
-      rows
-        .filter((s) => statusOrder(s.query.data?.status?.indicator) === 0)
-        .sort((a, b) => {
-          const severity = ["critical", "major", "minor", "maintenance"];
-          return (
-            severity.indexOf(a.query.data!.status.indicator) -
-            severity.indexOf(b.query.data!.status.indicator)
-          );
-        }),
-    ],
-    [
-      t("运行中"),
-      rows.filter((s) => s.query.data?.status?.indicator === "none"),
-    ],
-    [
-      t("待确认"),
-      rows.filter((s) => statusOrder(s.query.data?.status?.indicator) === 2),
-    ],
-  ] as const;
-  const tableRows = sections.flatMap(([, items]) =>
-    items.map((service) => ({
-      id: service.id,
-      name: service.name,
-      group: service.group,
-      page: service.page,
-      icon: service.icon,
-      data: service.query.data,
-      loading: Boolean(service.url) && service.query.isPending,
-      integrated: Boolean(service.url),
-      officialStatus: service.officialStatus !== false,
-      statusSource:
-        "statusSource" in service ? service.statusSource : undefined,
-      note: service.note,
-      fetching: service.query.isFetching,
-      error: service.query.error?.message,
-    })),
+  const pending = queries.some(
+    (q, index) => requestedIds.has(services[index].id) && q.isFetching,
   );
-  const columns: ColumnDef<(typeof tableRows)[number]>[] = [
-    {
-      accessorKey: "name",
-      header: t("服务"),
-      cell: ({ row }) => (
-        <button
-          type="button"
-          className="service-name text-left text-primary focus-visible:outline-ring"
-          onClick={() => setDetailId(row.original.id)}
-          aria-label={t("查看 {0} 详情", [row.original.name])}
-        >
-          <SiteLogo src={row.original.icon} website={row.original.page} />
-          <UnderlineHover className="truncate">
-            {row.original.name}
-          </UnderlineHover>
-          {!!row.original.data?.incidents?.length && (
-            <Badge variant="secondary" className="shrink-0">
-              {row.original.data.incidents.length}
-              {t("个事件")}
-            </Badge>
-          )}
-        </button>
-      ),
-    },
-    {
-      accessorKey: "group",
-      header: t("分类"),
-      cell: ({ row }) => (
-        <Badge variant="secondary">{t(row.original.group)}</Badge>
-      ),
-    },
-    {
-      id: "status",
-      header: t("状态"),
-      cell: ({ row }) => {
-        const service = row.original;
-        const indicator = service.data?.status?.indicator;
-        return (
-          <button
-            type="button"
-            onClick={() => setDetailId(service.id)}
-            aria-label={t("查看 {0} 状态详情", [service.name])}
-            className={`service-table-state service-card service-${indicator ?? "unknown"}`}
-          >
-            <i
-              className={`service-dot ${service.fetching ? "service-dot-loading" : ""}`}
-            />
-            <AnimatedValue value={`${service.loading}-${indicator}`}>
-              {service.loading ? (
-                <Pending>{t("查询中...")}</Pending>
-              ) : !service.integrated ? (
-                t("未接入")
-              ) : (
-                (labels[indicator ?? ""] ?? t("未知"))
-              )}
-            </AnimatedValue>
-          </button>
-        );
-      },
-    },
-    {
-      id: "updated",
-      header: t("更新时间"),
-      cell: ({ row }) => (
-        <span className="small muted">
-          {row.original.data?.fetchedAt
-            ? new Date(row.original.data.fetchedAt).toLocaleTimeString(locale)
-            : "—"}
-        </span>
-      ),
-    },
-    {
-      id: "action",
-      header: "",
-      cell: ({ row }) => (
-        <UnderlineHover asChild>
-          <a
-            href={row.original.page}
-            target="_blank"
-            rel="noreferrer"
-            className="small"
-          >
-            {row.original.statusSource
-              ? t("第三方 · {0} ↗", [row.original.statusSource])
-              : row.original.officialStatus
-                ? t("官方状态 ↗")
-                : t("平台官网 ↗")}
-          </a>
-        </UnderlineHover>
-      ),
-    },
-  ];
-  const detail = tableRows.find((service) => service.id === detailId);
+  const allRows: ServiceRow[] = services.map((service, i) => ({
+    ...service,
+    requested: requestedIds.has(service.id),
+    query: queries[i],
+  }));
+  const rows: ServiceRow[] = allRows.filter(
+    (s) => filter === "" || filter === "全部" || s.group === filter,
+  );
+  const issueRows = rows
+    .filter((row) => statusOrder(row.query.data?.status?.indicator) === 0)
+    .sort((a, b) => severityRank(a) - severityRank(b));
+  const healthyCount = rows.filter(
+    (row) => row.query.data?.status?.indicator === "none",
+  ).length;
+  const unknownCount = rows.filter(
+    (row) => statusOrder(row.query.data?.status?.indicator) === 2,
+  ).length;
+  const groups = GROUP_ORDER.map((group) => ({
+    group,
+    items: allRows
+      .filter((row) => row.group === group)
+      .sort((a, b) => severityRank(a) - severityRank(b)),
+  })).filter(({ items }) => items.length > 0);
+
   return (
-    <div className="service-status-page">
+    <div className="status-wall">
       <PageHeading
         title={t("服务状态")}
-        description={t("各服务运行状态与故障事件，第三方来源单独标注")}
+        description={t("各服务官方运行状态与故障事件")}
       />
-      <div className="toolbar">
-        <div className="filter-tabs">
-          {["全部", "AI", "VPS", "云服务", "开发", "社区"].map((group) => (
+      <section className="sw-hero hud-frame">
+        <div className="sw-hero-top">
+          <h2
+            className={`sw-hero-state${issueRows.length > 0 ? " sw-hero-state-alert" : ""}`}
+          >
+            {issueRows.length > 0
+              ? t("{0} 个服务需要关注", [issueRows.length])
+              : healthyCount > 0
+                ? t("全部服务运行正常")
+                : t("正在检测服务状态…")}
+          </h2>
+          <div className="sw-hero-counts">
+            <span className="sw-count sw-count-ok">
+              <NumberTicker value={healthyCount} />
+              <em>{t("运行中")}</em>
+            </span>
+            <span className="sw-count-sep" aria-hidden="true">
+              /
+            </span>
+            <span className="sw-count sw-count-issue">
+              <NumberTicker value={issueRows.length} />
+              <em>{t("异常")}</em>
+            </span>
+            <span className="sw-count-sep" aria-hidden="true">
+              /
+            </span>
+            <span className="sw-count sw-count-unknown">
+              <NumberTicker value={unknownCount} />
+              <em>{t("未知")}</em>
+            </span>
             <Button
+              variant="outline"
               size="sm"
-              variant={group === filter ? "secondary" : "ghost"}
-              key={t(group)}
-              onClick={() => setParams(group === "全部" ? {} : { group })}
+              disabled={pending}
+              aria-busy={pending}
+              onClick={() => {
+                void Promise.all(
+                  queries
+                    .filter(
+                      (_, index) =>
+                        services[index].url &&
+                        requestedIds.has(services[index].id),
+                    )
+                    .map((q) => q.refetch()),
+                );
+              }}
             >
-              {t(group)}
+              {pending ? <Pending>{t("刷新中…")}</Pending> : t("刷新状态")}
             </Button>
+          </div>
+        </div>
+        <div className="sw-strip" role="list" aria-label={t("服务状态总览")}>
+          {rows.map((row) => (
+            <SpectrumBar key={row.id} row={row} />
           ))}
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={pending}
-          aria-busy={pending}
-          onClick={() => {
-            void Promise.all(
-              queries
-                .filter((_, index) => services[index].url)
-                .map((q) => q.refetch()),
-            );
-          }}
-        >
-          {pending ? <Pending>{t("刷新中…")}</Pending> : t("刷新状态")}
-        </Button>
-      </div>
-      <div className="service-summary">
-        {sections.map(([label, items], index) => (
-          <ToolCard
-            key={label}
-            title={
-              <span className="block truncate" title={label}>
-                {locale === "en"
-                  ? ["Issues", "Healthy", "Unknown"][index]
-                  : label}
-              </span>
-            }
-            className={`service-summary-card summary-${index}`}
-          >
-            <div className="service-summary-number">
-              <NumberTicker value={items.length} />
-              <span>{t("个服务")}</span>
-            </div>
-          </ToolCard>
-        ))}
-      </div>
-      {mobile ? (
-        <div className="space-y-3">
-          {sections.map(
-            ([label, items]) =>
-              items.length > 0 && (
-                <Card key={label}>
-                  <CardContent>
-                    <h2 className="mb-1 text-xs font-medium text-muted-foreground">
-                      {label} · {items.length}
-                    </h2>
-                    <div className="divide-y divide-border/50">
-                      {items.map((service) => {
-                        const indicator = service.query.data?.status?.indicator;
-                        const incident = service.query.data?.incidents?.[0];
-                        return (
-                          <button
-                            key={service.id}
-                            type="button"
-                            onClick={() => setDetailId(service.id)}
-                            className="block w-full py-3 text-left"
-                            aria-label={t("查看 {0} 详情", [service.name])}
-                          >
-                            <span className="flex items-center justify-between gap-2">
-                              <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                                <SiteLogo
-                                  src={service.icon}
-                                  website={service.page}
-                                />
-                                <span className="truncate">
-                                  {service.name.replace(" (Anthropic)", "")}
-                                </span>
-                              </span>
-                              <span
-                                className={`service-card service-${indicator ?? "unknown"} shrink-0 text-xs`}
-                              >
-                                {service.query.isFetching && !service.query.data
-                                  ? t("查询中")
-                                  : !service.url
-                                    ? t("未接入")
-                                    : (labels[indicator ?? ""] ?? t("待确认"))}
-                              </span>
-                            </span>
-                            {incident && (
-                              <span className="mt-1 block truncate text-xs text-muted-foreground">
-                                {incident.name}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              ),
-          )}
+        <div className="sw-legend">
+          <span className="sw-legend-item">
+            <i className="sw-block sw-none" aria-hidden="true" />
+            {t("正常运行")}
+          </span>
+          <span className="sw-legend-item">
+            <i className="sw-block sw-minor" aria-hidden="true" />
+            {t("轻微 / 维护")}
+          </span>
+          <span className="sw-legend-item">
+            <i className="sw-block sw-major" aria-hidden="true" />
+            {t("严重故障")}
+          </span>
+          <span className="sw-legend-item">
+            <i className="sw-block sw-unknown" aria-hidden="true" />
+            {t("待确认")}
+          </span>
+          <span className="sw-legend-item">
+            <i className="sw-block sw-none-integrated" aria-hidden="true" />
+            {t("未接入")}
+          </span>
         </div>
-      ) : (
-        <div className="service-table">
-          <Card>
-            <CardContent>
-              <DataTable
-                data={tableRows}
-                columns={columns}
-                getRowId={(row) => row.id}
-                animateChanges={false}
-                empty={t("暂无服务")}
-              />
-            </CardContent>
-          </Card>
+      </section>
+      <div className="sw-toolbar">
+        <button
+          type="button"
+          className={`sw-all-chip${filter === "全部" ? " sw-all-chip-on" : ""}`}
+          onClick={() => setParams(filter === "全部" ? {} : { group: "全部" })}
+          aria-pressed={filter === "全部"}
+        >
+          {filter === "全部" ? t("全部收起") : t("全部展开")}
+        </button>
+        <span className="sw-toolbar-hint">{t("点击卡片展开对应分组")}</span>
+      </div>
+      {issueRows.length > 0 && (
+        <div className="sw-alert" role="alert">
+          <span className="sw-alert-tag">{t("告警")}</span>
+          <span className="sw-alert-items">
+            {issueRows.map((row, index) => (
+              <span key={row.id} className="sw-alert-item">
+                {index > 0 && (
+                  <span className="sw-alert-sep" aria-hidden="true">
+                    ·
+                  </span>
+                )}
+                <a href={row.page} target="_blank" rel="noreferrer">
+                  {row.name}
+                </a>
+                <em>{statusText(row)}</em>
+              </span>
+            ))}
+          </span>
         </div>
       )}
+      <div className="sw-groups">
+        {groups.map(({ group, items }) => {
+          const issueCount = items.filter(
+            (row) => statusOrder(row.query.data?.status?.indicator) === 0,
+          ).length;
+          const expanded = filter === "全部" || filter === group;
+          const worst = items.length
+            ? indicatorOf(
+                items.reduce((a, b) =>
+                  severityRank(a) <= severityRank(b) ? a : b,
+                ),
+              )
+            : "unknown";
+          return (
+            <section
+              className={`sw-card${expanded ? " sw-card-open" : ""}`}
+              key={group}
+            >
+              <button
+                type="button"
+                className="sw-card-head"
+                aria-expanded={expanded}
+                aria-label={t("{0} 服务列表", [t(group)])}
+                onClick={() => setParams(filter === group ? {} : { group })}
+              >
+                <span className="sw-card-id">
+                  <i
+                    className={`sw-block sw-card-dot sw-${worst}`}
+                    aria-hidden="true"
+                  />
+                  <span className="sw-card-name">{t(group)}</span>
+                  <span className="sw-card-sub">{GROUP_SUBTITLE[group]}</span>
+                </span>
+                <span className="sw-card-meta">
+                  {items.length}
+                  {t("个服务")}
+                  {issueCount > 0 && (
+                    <em className="sw-card-issues">
+                      {t("{0} 个异常", [issueCount])}
+                    </em>
+                  )}
+                </span>
+                <span className="sw-mini-strip" aria-hidden="true">
+                  {items.map((row) => (
+                    <i
+                      key={row.id}
+                      className={`sw-mini-bar sw-${indicatorOf(row)}`}
+                    />
+                  ))}
+                </span>
+                <span className="sw-card-chevron" aria-hidden="true">
+                  ▸
+                </span>
+              </button>
+              <div className="sw-card-body">
+                <div className="sw-card-body-inner">
+                  {items.map((row, index) => (
+                    <FlipCard
+                      key={row.id}
+                      row={row}
+                      index={index}
+                      focused={row.id === focusId}
+                    />
+                  ))}
+                </div>
+              </div>
+            </section>
+          );
+        })}
+      </div>
       <p className="small muted">
         {t("每 2 分钟自动检查。未知或查询失败不等于服务故障。")}
       </p>
-      <ResponsiveDialog
-        title={t("{0} · 服务详情", [detail?.name ?? t("服务")])}
-        description={
-          detail?.loading
-            ? t("正在查询服务状态…")
-            : t(
-                detail?.error ??
-                  detail?.note ??
-                  detail?.data?.status?.description ??
-                  t("暂无说明"),
-              )
-        }
-        open={detailId !== null}
-        onOpenChange={(open) => {
-          if (!open) setDetailId(null);
-        }}
-      >
-        {detail && (
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <Badge variant="secondary">
-              {!detail.integrated
-                ? t("未接入")
-                : (labels[detail.data?.status?.indicator ?? ""] ?? t("未知"))}
-            </Badge>
-            <span>{t(detail.group)}</span>
-            {detail.statusSource && (
-              <span>{t("第三方 · {0} ↗", [detail.statusSource])}</span>
-            )}
-            {detail.data?.checkedAt && (
-              <time>
-                {t("来源检测时间：{0}", [
-                  new Date(detail.data.checkedAt).toLocaleString(locale),
-                ])}
-              </time>
-            )}
-            {detail.data?.fetchedAt && (
-              <time>
-                {t("更新于")}
-                {new Date(detail.data.fetchedAt).toLocaleString(locale)}
-              </time>
-            )}
-          </div>
-        )}
-        {!!detail?.data?.components?.length && (
-          <section className="space-y-2">
-            <h3 className="text-sm font-medium">{t("服务组件")}</h3>
-            <dl className="divide-y divide-border text-sm">
-              {detail.data.components.map((component) => (
-                <div
-                  key={component.id}
-                  className="flex items-center justify-between gap-4 py-2"
-                >
-                  <dt className="min-w-0 break-words">{component.name}</dt>
-                  <dd className="shrink-0 text-muted-foreground">
-                    {componentLabels[component.status] ?? component.status}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        )}
-        <h3 className="text-sm font-medium">{t("当前事件")}</h3>
-        {!detail?.loading &&
-          !detail?.error &&
-          detail?.data &&
-          Array.isArray(detail.data.incidents) &&
-          !detail.data.incidents.length && (
-            <p className="text-sm text-muted-foreground">
-              {t("数据源未报告当前事件。")}
-            </p>
-          )}
-        {detail?.data && !detail.data.incidents && (
-          <p className="text-sm text-muted-foreground">
-            {t("此数据源仅提供汇总状态，事件详情请查看来源页面。")}
-          </p>
-        )}
-        {detail?.data?.incidents?.map((incident) => (
-          <section
-            key={incident.id}
-            className="space-y-2 rounded-lg bg-muted/50 p-3"
-          >
-            <h3 className="font-medium">{incident.name}</h3>
-            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-              <Badge variant="secondary">{incident.status}</Badge>
-              {incident.updated_at && (
-                <time>
-                  {new Date(incident.updated_at).toLocaleString(locale)}
-                </time>
-              )}
-            </div>
-          </section>
-        ))}
-        {detail && (
-          <a
-            className="text-sm underline underline-offset-4"
-            href={detail.page}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {detail.statusSource
-              ? t("第三方 · {0} ↗", [detail.statusSource])
-              : detail.officialStatus
-                ? t("查看官方状态页 ↗")
-                : t("前往平台官网 ↗")}
-          </a>
-        )}
-      </ResponsiveDialog>
     </div>
   );
 }

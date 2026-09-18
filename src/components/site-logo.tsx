@@ -1,7 +1,16 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn } from "cn";
 import { Globe2 } from "lucide-react";
 
-export function SiteLogo({ src, website }: { src?: string; website?: string }) {
+export function SiteLogo({
+  src,
+  website,
+  className,
+}: {
+  src?: string;
+  website?: string;
+  className?: string;
+}) {
   const hostname = website ? new URL(website).hostname : undefined;
   const iconHost =
     hostname === "api.openai.com"
@@ -32,10 +41,14 @@ export function SiteLogo({ src, website }: { src?: string; website?: string }) {
     ? `${import.meta.env.VITE_API_BASE_URL ?? "/api"}/icons/${encodeURIComponent(proxyHost)}`
     : icon;
   return (
-    <Avatar className="site-icon rounded-sm after:hidden" aria-hidden="true">
+    <Avatar
+      className={cn("site-icon rounded-sm after:hidden", className)}
+      aria-hidden="true"
+    >
       <AvatarImage
         src={imageSrc}
         alt=""
+        loading="lazy"
         referrerPolicy="no-referrer"
         style={{ transform: `scale(${logoScale})` }}
         className={`rounded-sm object-contain${githubIcon ? " dark:brightness-0 dark:invert" : ""}`}

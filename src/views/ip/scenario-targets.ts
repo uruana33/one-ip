@@ -1,5 +1,12 @@
 import { t } from "@/i18n";
-import catalog from "../link/targets.json" with { type: "json" };
+import catalog from "./connectivity-targets.json" with { type: "json" };
+
+type CatalogEntry = {
+  name: string;
+  url: string;
+  host?: string;
+  icon?: string;
+};
 
 export type ScenarioTarget = {
   id: string;
@@ -19,7 +26,7 @@ export type ScenarioGroup = {
 };
 
 function fromCatalog(name: string, label = name): ScenarioTarget {
-  const target = catalog.find((item) => item.name === name);
+  const target = (catalog as CatalogEntry[]).find((item) => item.name === name);
   if (!target) throw new Error(`Missing connectivity target: ${name}`);
   return {
     id: name,

@@ -54,7 +54,7 @@ export default defineConfig(() => {
       },
     ],
     optimizeDeps: {
-      include: ["vaul", "@fingerprintjs/fingerprintjs"],
+      include: ["vaul"],
     },
     resolve: {
       alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },

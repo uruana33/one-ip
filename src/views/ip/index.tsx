@@ -1,154 +1,77 @@
-import { useLayoutEffect, useRef, useState, useId } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { LookupForm } from "@/components/lookup-form";
-import { IpText, ErrorNotice, Pending } from "@/components/toolkit";
-import { Button } from "@/components/ui/button";
-import { useLookupHistory } from "@/hooks/use-lookup-history";
-import { t } from "@/i18n";
-import { useQuery } from "@tanstack/react-query";
-import { gsap } from "gsap";
-import { Search, X } from "lucide-react";
-import { lookupIp } from "./api";
-import type { CoffeeLookup } from "./coffee";
+import type { ReactNode } from "react";
+import type { LookupView } from "@/views/lookup/href";
+import PingPanel from "@/views/ping";
+import WhoisPanel from "@/views/whois";
+import { LookupFailure } from "./components/lookup-failure";
+import { LookupSkeleton } from "./components/lookup-skeleton";
+import { SnapshotNotice } from "./components/snapshot-notice";
 import { IpDetails } from "./details";
+import { useIpLookup } from "./hooks/use-ip-lookup";
 
-export default function IpPage() {
-  const { ip = "" } = useParams();
-  const navigate = useNavigate();
-  const history = useLookupHistory<CoffeeLookup>("ip-tools:coffee-history:v1");
-  const cached = history.find(ip);
-  const query = useQuery({
-    queryKey: ["lookup-ip-coffee", ip],
-    enabled: !!ip,
-    initialData: cached?.data,
-    initialDataUpdatedAt: cached?.savedAt,
-    staleTime: 300_000,
-    retry: false,
-    queryFn: async ({ signal }) => {
-      const result = await lookupIp(ip, signal);
-      history.save(ip, result);
-      return result;
-    },
-  });
-  const [searchOpen, setSearchOpen] = useState(false);
-  const searchPanel = useRef<HTMLDivElement>(null);
-  const searchButton = useRef<HTMLButtonElement>(null);
-  const searchId = useId();
-  useLayoutEffect(() => {
-    const panel = searchPanel.current;
-    if (!panel) return;
-    const reduced = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    const tween = gsap.to(panel, {
-      height: searchOpen ? "auto" : 0,
-      opacity: searchOpen ? 1 : 0,
-      duration: reduced ? 0 : 0.25,
-      ease: "power2.out",
-      overwrite: true,
-      onComplete: () => {
-        if (searchOpen) panel.querySelector("input")?.focus();
-      },
-    });
-    return () => {
-      tween.kill();
-    };
-  }, [searchOpen, Boolean(query.data)]);
-  const searchToggle = (
-    <Button
-      ref={searchButton}
-      type="button"
-      variant="ghost"
-      size="icon"
-      className="size-8 shrink-0 text-primary"
-      aria-label={searchOpen ? t("收起搜索") : t("展开搜索")}
-      aria-expanded={searchOpen}
-      aria-controls={searchId}
-      onClick={() => setSearchOpen((open) => !open)}
-    >
-      {searchOpen ? <X className="size-4" /> : <Search className="size-4" />}
-    </Button>
-  );
-  const search = (
-    <div
-      ref={searchPanel}
-      id={searchId}
-      aria-hidden={!searchOpen}
-      inert={!searchOpen}
-      style={{ height: 0, opacity: 0, overflow: "hidden" }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          setSearchOpen(false);
-          searchButton.current?.focus();
+export default function IpPanel({
+  ip,
+  view,
+  search,
+}: {
+  ip: string;
+  view?: LookupView;
+  search?: ReactNode;
+}) {
+  const query = useIpLookup(ip);
+  const failure = query.failure ? (
+    <LookupFailure
+      report={query.failure}
+      ip={ip}
+      busy={query.isFetching}
+      onRetry={() => void query.refetch()}
+    />
+  ) : null;
+  const notice = query.showingSnapshot ? (
+    <SnapshotNotice savedAt={query.snapshotAt} />
+  ) : null;
+
+  if (query.data) {
+    return (
+      <IpDetails
+        data={query.data}
+        view={view}
+        search={search}
+        banner={
+          <>
+            {failure}
+            {notice}
+          </>
         }
-      }}
-    >
-      <div className="pt-2">
-        <LookupForm
-          grouped
-          value={ip}
-          placeholder={t("输入 IPv4 或 IPv6 地址")}
-          busy={query.isFetching}
-          onSubmit={(value) =>
-            value === ip
-              ? void query.refetch()
-              : navigate(`/network/ip/${encodeURIComponent(value)}`)
-          }
-        />
-      </div>
-    </div>
-  );
-  const recent = (
-    <div className="ip-recent-row">
-      <div className="ip-recent">
-        <span>{history.entries.length ? t("最近查询") : t("推荐查询")}</span>
-        {(history.entries.length
-          ? history.entries.map((entry) => entry.query)
-          : ["1.1.1.1", "8.8.8.8", "223.5.5.5"]
-        )
-          .slice(0, 6)
-          .map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() =>
-                value === ip
-                  ? void query.refetch()
-                  : navigate(`/network/ip/${encodeURIComponent(value)}`)
-              }
-            >
-              <IpText ip={value} link={false} />
-            </button>
-          ))}
-      </div>
-      {searchToggle}
-    </div>
-  );
+      />
+    );
+  }
+
   return (
-    <div className="lookup-page ip-detail-page">
-      <h1 className="sr-only">{t("IP 信息查询")}</h1>
-      <ErrorNotice error={query.error} />
-      {query.isFetching && (
-        <p className="status-line" role="status">
-          <Pending>{t("查询中…")}</Pending>
-        </p>
-      )}
-      {query.data ? (
-        <IpDetails
-          key={query.data.coffee.ip}
-          data={query.data}
-          search={search}
-          recent={recent}
-        />
-      ) : (
-        <div className="ip-dossier-top">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold">{t("IP 信息查询")}</span>
+    <article className="ip-folio">
+      {search ? (
+        <header className="ip-folio-mast">
+          <div className="ip-folio-query">
+            <div className="ip-folio-query-field">{search}</div>
           </div>
-          {search}
-          {recent}
-        </div>
+          {failure}
+        </header>
+      ) : (
+        failure
       )}
-    </div>
+      {query.isFetching ? (
+        <LookupSkeleton />
+      ) : (
+        <>
+          <div id="lookup-whois" className="ip-folio-record">
+            <WhoisPanel query={ip} compact embedded plain />
+          </div>
+          {view === "ping" ? (
+            <section id="lookup-ping" className="ip-folio-ping">
+              <PingPanel host={ip} hideSearch />
+            </section>
+          ) : null}
+        </>
+      )}
+    </article>
   );
 }

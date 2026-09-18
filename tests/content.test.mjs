@@ -19,11 +19,22 @@ test("removed DNS and news routes have no page source or navigation entries", ()
     "src/lib/article-paths.json",
     "public/worker/dns.js",
     "public/claude",
+    "src/views/link",
+    "src/components/connectivity.tsx",
+    "src/views/browser",
+    "vendor/browser-diagnostics",
+    "public/browser-diagnostics.js",
   ])
     assert.equal(existsSync(path), false, path);
   const app = readFileSync("src/App.tsx", "utf8");
-  assert.doesNotMatch(app, /DnsPage|NewsPage|ArticlePage|articlePaths/);
+  assert.doesNotMatch(
+    app,
+    /DnsPage|NewsPage|ArticlePage|articlePaths|LinkPage|BrowserPage|ChallengesPage/,
+  );
   assert.ok(navigationRoutes.every((route) => !/dns|news/.test(route.value)));
+  assert.ok(
+    !toolGroups.network.some((route) => route.path === "/network/connectivity"),
+  );
 });
 test("animated navigation maps IP details and live status to their parent tools", () => {
   for (const route of navigationRoutes) {
@@ -33,7 +44,7 @@ test("animated navigation maps IP details and live status to their parent tools"
       route.value,
     );
   }
-  assert.equal(activeNavigationRoute("/network/ip/1.1.1.1"), "/network/");
+  assert.equal(activeNavigationRoute("/network/ip/1.1.1.1"), "/network/ip");
   assert.equal(activeNavigationRoute("/status/claude"), "/status/");
   assert.equal(activeNavigationRoute("/status/openai"), "/status/");
   for (const path of [
@@ -50,10 +61,8 @@ test("animated navigation maps IP details and live status to their parent tools"
 });
 test("site logos use HTTPS icon URLs rather than bundled files", () => {
   const sites = json("src/views/home/sites.json");
-  const targets = json("src/views/link/targets.json");
   assert.ok(sites.length > 0);
-  assert.ok(targets.length > 0);
-  for (const item of [...sites, ...targets]) {
+  for (const item of sites) {
     const icon = new URL(item.icon);
     assert.equal(icon.protocol, "https:");
     if (item.slug === "douyin") {
@@ -80,17 +89,27 @@ test("production assets exclude deleted content and backend source", () => {
   );
 });
 
-test("tool routes select their grouped navigation", () => {
-  for (const path of [
-    "/network/connectivity/",
-    "/network/cdn/",
-    "/network/dns/",
-    "/network/ping/",
-  ])
-    assert.equal(activeNavigationRoute(path), "/network/");
-  assert.equal(activeNavigationRoute("/network/whois/"), "/network/");
+test("address lookup is a header tool; WHOIS and ping still land there", () => {
+  assert.deepEqual(
+    navigationRoutes.map((item) => item.value),
+    ["/", "/network/ip", "/network/subdomains", "/ai/", "/status/", "/network/egress"],
+  );
+  assert.deepEqual(
+    toolGroups.network.map((item) => item.path),
+    ["/network/egress"],
+  );
+  assert.equal(activeNavigationRoute("/network/ip/1.1.1.1"), "/network/ip");
+  for (const path of ["/network/ping/", "/network/connectivity/"])
+    assert.equal(activeNavigationRoute(path), "/network/ip");
+  assert.equal(activeNavigationRoute("/network/whois/"), "/network/ip");
+  assert.equal(
+    activeNavigationRoute("/network/subdomains/"),
+    "/network/subdomains",
+  );
+  assert.equal(activeNavigationRoute("/network/egress/"), "/network/egress");
   assert.equal(activeNavigationRoute("/ai/claude/"), "/ai/");
-  assert.equal(navigationRoutes.length, 5);
+  assert.equal(activeNavigationRoute("/webrtc"), "/");
+  assert.equal(navigationRoutes.length, 6);
 });
 
 test("all module links map to exactly one parent and legacy paths redirect to canonical destinations", () => {
@@ -98,11 +117,17 @@ test("all module links map to exactly one parent and legacy paths redirect to ca
     .flat()
     .map((item) => item.path);
   assert.equal(new Set(paths).size, paths.length);
+  const landing = {
+    network: "/network/egress",
+    ai: "/ai/",
+  };
   for (const [group, routes] of Object.entries(toolGroups))
     for (const route of routes)
-      assert.equal(activeNavigationRoute(route.path), `/${group}/`);
+      assert.equal(activeNavigationRoute(route.path), landing[group]);
   for (const to of Object.values(legacyRoutes))
     assert.notEqual(activeNavigationRoute(to), "not-found", to);
-  assert.equal(legacyRoutes["/network/webrtc"], "/browser/privacy");
+  assert.equal(legacyRoutes["/network/webrtc"], "/webrtc");
   assert.equal(legacyRoutes["/ai/gpt/status"], "/status/openai");
+  assert.equal(legacyRoutes["/link"], "/network/ip");
+  assert.equal(legacyRoutes["/network/link"], "/network/ip");
 });

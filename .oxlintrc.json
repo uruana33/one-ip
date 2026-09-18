@@ -9,9 +9,5 @@
         "allowConstantExport": true
       }
     ]
-  },
-  "ignorePatterns": [
-    "vendor/browser-diagnostics/**",
-    "public/browser-diagnostics.js"
-  ]
+  }
 }

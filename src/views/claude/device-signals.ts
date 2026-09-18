@@ -1,4 +1,3 @@
-import type { BrowserNavigator } from "@/views/browser/environment";
 import {
   CN_TIMEZONES,
   CN_BROWSER_PATTERNS,
@@ -7,6 +6,13 @@ import {
   FONTS_TC,
   FONTS_CN_VENDOR,
 } from "./device-patterns.ts";
+
+type BrowserNavigator = Navigator & {
+  userAgentData?: {
+    brands: { brand: string; version: string }[];
+    getHighEntropyValues(hints: string[]): Promise<Record<string, unknown>>;
+  };
+};
 
 export function matchEnvironment(
   userAgent: string,

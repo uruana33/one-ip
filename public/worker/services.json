@@ -13,7 +13,7 @@
   {
     "id": "0",
     "name": "Cloudflare",
-    "group": "云服务",
+    "group": "网络基础设施",
     "url": "https://www.cloudflarestatus.com/api/v2/summary.json",
     "page": "https://www.cloudflarestatus.com"
   },
@@ -25,16 +25,9 @@
     "page": "https://status.supabase.com"
   },
   {
-    "id": "2",
-    "name": "SendGrid",
-    "group": "开发",
-    "url": "https://status.sendgrid.com/api/v2/summary.json",
-    "page": "https://status.twilio.com"
-  },
-  {
     "id": "3",
     "name": "Twilio",
-    "group": "开发",
+    "group": "消息与邮件",
     "url": "https://status.twilio.com/api/v2/summary.json",
     "page": "https://status.twilio.com"
   },
@@ -95,7 +88,7 @@
   {
     "id": "12",
     "name": "DigitalOcean",
-    "group": "云服务",
+    "group": "VPS",
     "url": "https://status.digitalocean.com/api/v2/summary.json",
     "page": "http://status.digitalocean.com"
   },
@@ -130,14 +123,14 @@
   {
     "id": "17",
     "name": "Clerk",
-    "group": "开发",
+    "group": "监控与安全",
     "url": "https://status.clerk.com/api/v2/summary.json",
     "page": "https://status.clerk.com/"
   },
   {
     "id": "18",
     "name": "Figma",
-    "group": "开发",
+    "group": "协作与办公",
     "url": "https://status.figma.com/api/v2/summary.json",
     "page": "https://status.figma.com"
   },
@@ -151,7 +144,7 @@
   {
     "id": "20",
     "name": "Notion",
-    "group": "开发",
+    "group": "协作与办公",
     "url": "https://www.notion-status.com/api/v2/summary.json",
     "page": "https://www.notion-status.com/"
   },
@@ -172,14 +165,14 @@
   {
     "id": "23",
     "name": "Sentry",
-    "group": "开发",
+    "group": "监控与安全",
     "url": "https://status.sentry.io/api/v2/summary.json",
     "page": "https://status.sentry.io"
   },
   {
     "id": "24",
     "name": "Stripe",
-    "group": "开发",
+    "group": "支付与电商",
     "url": "https://www.stripestatus.com/api/v2/summary.json",
     "page": "https://www.stripestatus.com"
   },
@@ -215,14 +208,14 @@
     "id": "29",
     "name": "Twitch",
     "group": "社区",
-    "url": "https://status.twitch.tv/api/v2/summary.json",
+    "url": "https://status.twitch.com/api/v2/summary.json",
     "page": "https://status.twitch.com"
   },
   {
     "id": "30",
     "name": "Zoom",
-    "group": "社区",
-    "url": "https://status.zoom.us/api/v2/summary.json",
+    "group": "协作与办公",
+    "url": "https://www.zoomstatus.com/api/v2/summary.json",
     "page": "https://www.zoomstatus.com"
   },
   {
@@ -242,7 +235,7 @@
     "url": "https://status.deepseek.com/feed.rss",
     "page": "https://status.deepseek.com",
     "icon": "https://icons.duckduckgo.com/ip3/www.deepseek.com.ico",
-    "note": "读取 DeepSeek 官方 RSS 中未解决的事件，已恢复事件不计入故障。",
+    "note": "优先读取官方 RSS 事件；当状态页对数据中心出口不可达时，降级为 API 网关与官网可达性探测。",
     "officialStatus": true
   },
   {
@@ -354,5 +347,383 @@
     "icon": "https://icons.duckduckgo.com/ip3/oracle.com.ico",
     "note": "展示 OCI 商业区域的官方汇总状态；区域详情请查看官方页面。",
     "officialStatus": true
+  },
+  {
+    "id": "36",
+    "name": "MongoDB Atlas",
+    "group": "数据服务",
+    "url": "https://status.mongodb.com/api/v2/summary.json",
+    "page": "https://status.cloud.mongodb.com"
+  },
+  {
+    "id": "37",
+    "name": "Render",
+    "group": "云服务",
+    "url": "https://status.render.com/api/v2/summary.json",
+    "page": "https://status.render.com"
+  },
+  {
+    "id": "38",
+    "name": "Linode (Akamai)",
+    "group": "VPS",
+    "url": "https://status.linode.com/api/v2/summary.json",
+    "page": "https://status.linode.com"
+  },
+  {
+    "id": "39",
+    "name": "PlanetScale",
+    "group": "数据服务",
+    "url": "https://www.planetscalestatus.com/api/v2/summary.json",
+    "page": "https://www.planetscalestatus.com"
+  },
+  {
+    "id": "40",
+    "name": "Datadog",
+    "group": "监控与安全",
+    "url": "https://status.datadoghq.com/api/v2/summary.json",
+    "page": "https://status.datadoghq.com"
+  },
+  {
+    "id": "41",
+    "name": "Bitbucket",
+    "group": "开发",
+    "url": "https://bitbucket.status.atlassian.com/api/v2/summary.json",
+    "page": "https://bitbucket.status.atlassian.com"
+  },
+  {
+    "id": "42",
+    "name": "CircleCI",
+    "group": "开发",
+    "url": "https://status.circleci.com/api/v2/summary.json",
+    "page": "https://status.circleci.com"
+  },
+  {
+    "id": "43",
+    "name": "Zapier",
+    "group": "开发",
+    "url": "https://status.zapier.com/api/v2/summary.json",
+    "page": "https://status.zapier.com"
+  },
+  {
+    "id": "44",
+    "name": "Cohere",
+    "group": "AI",
+    "url": "https://status.cohere.com/api/v2/summary.json",
+    "page": "https://status.cohere.com"
+  },
+  {
+    "id": "45",
+    "name": "MiniMax",
+    "group": "AI",
+    "url": "https://status.minimaxi.com/api/v2/summary.json",
+    "page": "https://status.minimaxi.com",
+    "icon": "https://icons.duckduckgo.com/ip3/www.minimaxi.com.ico"
+  },
+  {
+    "id": "46",
+    "name": "Together AI",
+    "group": "AI",
+    "url": "https://together.statuspage.io/api/v2/summary.json",
+    "page": "https://status.together.ai",
+    "icon": "https://icons.duckduckgo.com/ip3/together.ai.ico"
+  },
+  {
+    "id": "47",
+    "name": "Canva",
+    "group": "协作与办公",
+    "url": "https://www.canvastatus.com/api/v2/summary.json",
+    "page": "https://www.canvastatus.com"
+  },
+  {
+    "id": "copilot",
+    "name": "Microsoft Copilot",
+    "group": "AI",
+    "url": "https://copilot.microsoft.com/",
+    "page": "https://copilot.microsoft.com/",
+    "icon": "https://icons.duckduckgo.com/ip3/copilot.microsoft.com.ico",
+    "probe": ["https://copilot.microsoft.com/"],
+    "note": "无官方公开状态页，通过 Copilot 官网可达性判断状态；仅供参考。",
+    "officialStatus": false
+  },
+  {
+    "id": "doubao",
+    "name": "豆包 (Doubao)",
+    "group": "AI",
+    "url": "https://www.doubao.com/",
+    "page": "https://www.doubao.com/",
+    "icon": "https://icons.duckduckgo.com/ip3/www.doubao.com.ico",
+    "probe": ["https://www.doubao.com/", "https://ark.cn-beijing.volces.com/"],
+    "note": "无官方公开状态页，通过官网与火山方舟 API 可达性判断状态；仅供参考。",
+    "officialStatus": false
+  },
+  {
+    "id": "zhipu",
+    "name": "智谱 GLM",
+    "group": "AI",
+    "url": "https://open.bigmodel.cn/",
+    "page": "https://open.bigmodel.cn/",
+    "icon": "https://icons.duckduckgo.com/ip3/open.bigmodel.cn.ico",
+    "probe": ["https://open.bigmodel.cn/", "https://www.zhipuai.cn/"],
+    "note": "无官方公开状态页，通过开放平台与官网可达性判断状态；仅供参考。",
+    "officialStatus": false
+  },
+  {
+    "id": "baidu-ernie",
+    "name": "文心一言 (千帆)",
+    "group": "AI",
+    "url": "https://qianfan.cloud.baidu.com/",
+    "page": "https://qianfan.cloud.baidu.com/",
+    "icon": "https://icons.duckduckgo.com/ip3/qianfan.cloud.baidu.com.ico",
+    "probe": ["https://qianfan.cloud.baidu.com/", "https://www.baidu.com/"],
+    "note": "无官方公开状态页，通过千帆平台与官网可达性判断状态；仅供参考。",
+    "officialStatus": false
+  },
+  {
+    "id": "tencent-hunyuan",
+    "name": "腾讯混元",
+    "group": "AI",
+    "url": "https://hunyuan.tencent.com/",
+    "page": "https://hunyuan.tencent.com/",
+    "icon": "https://icons.duckduckgo.com/ip3/hunyuan.tencent.com.ico",
+    "probe": ["https://hunyuan.tencent.com/", "https://cloud.tencent.com/"],
+    "note": "无官方公开状态页，通过混元官网与腾讯云可达性判断状态；仅供参考。",
+    "officialStatus": false
+  },
+  {
+    "id": "stepfun",
+    "name": "阶跃星辰 (StepFun)",
+    "group": "AI",
+    "url": "https://platform.stepfun.com/",
+    "page": "https://platform.stepfun.com/",
+    "icon": "https://icons.duckduckgo.com/ip3/platform.stepfun.com.ico",
+    "probe": ["https://platform.stepfun.com/", "https://www.stepfun.com/"],
+    "note": "无官方公开状态页，通过开放平台与官网可达性判断状态；仅供参考。",
+    "officialStatus": false
+  },
+  {
+    "id": "yi",
+    "name": "零一万物 (Yi)",
+    "group": "AI",
+    "url": "https://platform.lingyiwanwu.com/",
+    "page": "https://platform.lingyiwanwu.com/",
+    "icon": "https://icons.duckduckgo.com/ip3/platform.lingyiwanwu.com.ico",
+    "probe": [
+      "https://platform.lingyiwanwu.com/",
+      "https://www.lingyiwanwu.com/"
+    ],
+    "note": "无官方公开状态页，通过开放平台与官网可达性判断状态；仅供参考。",
+    "officialStatus": false
+  },
+  {
+    "id": "x",
+    "name": "X (Twitter)",
+    "group": "社区",
+    "url": "https://twitter.com/",
+    "page": "https://x.com",
+    "icon": "https://icons.duckduckgo.com/ip3/x.com.ico",
+    "probe": ["https://twitter.com/", "https://x.com/"],
+    "note": "X 已不再公开官方状态页，通过 twitter.com 与 x.com 可达性判断状态；仅供参考。",
+    "officialStatus": false
+  },
+  {
+    "id": "v2ex",
+    "name": "V2EX",
+    "group": "社区",
+    "url": "https://www.v2ex.com/api/topics/hot.json",
+    "page": "https://www.v2ex.com",
+    "icon": "https://icons.duckduckgo.com/ip3/v2ex.com.ico",
+    "probe": ["https://www.v2ex.com/api/topics/hot.json"],
+    "note": "无官方状态页，通过公开 API 可达性判断状态；仅供参考。",
+    "officialStatus": false
+  },
+  {
+    "id": "nodeseek",
+    "name": "NodeSeek",
+    "group": "社区",
+    "url": "https://www.nodeseek.com/",
+    "page": "https://www.nodeseek.com",
+    "icon": "https://icons.duckduckgo.com/ip3/nodeseek.com.ico",
+    "probe": ["https://www.nodeseek.com/"],
+    "note": "无官方状态页，通过官网可达性判断状态；仅供参考。",
+    "officialStatus": false
+  },
+  {
+    "id": "linux-do",
+    "name": "LINUX DO",
+    "group": "社区",
+    "url": "https://linux.do/",
+    "page": "https://linux.do",
+    "icon": "https://icons.duckduckgo.com/ip3/linux.do.ico",
+    "probe": ["https://linux.do/"],
+    "note": "无官方状态页，通过官网可达性判断状态；仅供参考。",
+    "officialStatus": false
+  },
+  {
+    "id": "baseten",
+    "name": "Baseten",
+    "group": "AI",
+    "url": "https://status.baseten.co/api/v2/summary.json",
+    "page": "https://status.baseten.co"
+  },
+  {
+    "id": "cerebras",
+    "name": "Cerebras",
+    "group": "AI",
+    "url": "https://status.cerebras.ai/api/v2/summary.json",
+    "page": "https://status.cerebras.ai"
+  },
+  {
+    "id": "stability-ai",
+    "name": "Stability AI",
+    "group": "AI",
+    "url": "https://status.stability.ai/api/v2/summary.json",
+    "page": "https://status.stability.ai"
+  },
+  {
+    "id": "fireworks-ai",
+    "name": "Fireworks AI",
+    "group": "AI",
+    "url": "https://status.fireworks.ai/api/v2/summary.json",
+    "page": "https://status.fireworks.ai"
+  },
+  {
+    "id": "linear",
+    "name": "Linear",
+    "group": "开发",
+    "url": "https://linearstatus.com/api/v2/summary.json",
+    "page": "https://status.linear.app"
+  },
+  {
+    "id": "launchdarkly",
+    "name": "LaunchDarkly",
+    "group": "开发",
+    "url": "https://status.launchdarkly.com/api/v2/summary.json",
+    "page": "https://status.launchdarkly.com"
+  },
+  {
+    "id": "docker",
+    "name": "Docker Hub",
+    "group": "开发",
+    "url": "https://www.dockerstatus.com/api/v2/summary.json",
+    "page": "https://www.dockerstatus.com"
+  },
+  {
+    "id": "grafana",
+    "name": "Grafana Cloud",
+    "group": "监控与安全",
+    "url": "https://status.grafana.com/api/v2/summary.json",
+    "page": "https://status.grafana.com"
+  },
+  {
+    "id": "new-relic",
+    "name": "New Relic",
+    "group": "监控与安全",
+    "url": "https://status.newrelic.com/api/v2/summary.json",
+    "page": "https://status.newrelic.com"
+  },
+  {
+    "id": "onepassword",
+    "name": "1Password",
+    "group": "监控与安全",
+    "url": "https://status.1password.com/api/v2/summary.json",
+    "page": "https://status.1password.com"
+  },
+  {
+    "id": "elastic",
+    "name": "Elastic Cloud",
+    "group": "数据服务",
+    "url": "https://status.elastic.co/api/v2/summary.json",
+    "page": "https://status.elastic.co"
+  },
+  {
+    "id": "cockroachdb",
+    "name": "CockroachDB Cloud",
+    "group": "数据服务",
+    "url": "https://status.cockroachlabs.cloud/api/v2/summary.json",
+    "page": "https://status.cockroachlabs.cloud"
+  },
+  {
+    "id": "upstash",
+    "name": "Upstash",
+    "group": "数据服务",
+    "url": "https://status.upstash.com/api/v2/summary.json",
+    "page": "https://status.upstash.com"
+  },
+  {
+    "id": "mailgun",
+    "name": "Mailgun",
+    "group": "消息与邮件",
+    "url": "https://status.mailgun.com/api/v2/summary.json",
+    "page": "https://status.mailgun.com"
+  },
+  {
+    "id": "brevo",
+    "name": "Brevo",
+    "group": "消息与邮件",
+    "url": "https://status.brevo.com/api/v2/summary.json",
+    "page": "https://status.brevo.com"
+  },
+  {
+    "id": "mux",
+    "name": "Mux",
+    "group": "媒体与内容",
+    "url": "https://status.mux.com/api/v2/summary.json",
+    "page": "https://status.mux.com"
+  },
+  {
+    "id": "cloudinary",
+    "name": "Cloudinary",
+    "group": "媒体与内容",
+    "url": "https://status.cloudinary.com/api/v2/summary.json",
+    "page": "https://status.cloudinary.com"
+  },
+  {
+    "id": "akamai",
+    "name": "Akamai",
+    "group": "网络基础设施",
+    "url": "https://www.akamaistatus.com/api/v2/summary.json",
+    "page": "https://www.akamaistatus.com"
+  },
+  {
+    "id": "bunny",
+    "name": "Bunny.net",
+    "group": "网络基础设施",
+    "url": "https://status.bunny.net/api/v2/summary.json",
+    "page": "https://status.bunny.net"
+  },
+  {
+    "id": "airtable",
+    "name": "Airtable",
+    "group": "协作与办公",
+    "url": "https://status.airtable.com/api/v2/summary.json",
+    "page": "https://status.airtable.com"
+  },
+  {
+    "id": "asana",
+    "name": "Asana",
+    "group": "协作与办公",
+    "url": "https://status.asana.com/api/v2/summary.json",
+    "page": "https://status.asana.com"
+  },
+  {
+    "id": "coinbase",
+    "name": "Coinbase",
+    "group": "支付与电商",
+    "url": "https://status.coinbase.com/api/v2/summary.json",
+    "page": "https://status.coinbase.com"
+  },
+  {
+    "id": "plaid",
+    "name": "Plaid",
+    "group": "支付与电商",
+    "url": "https://status.plaid.com/api/v2/summary.json",
+    "page": "https://status.plaid.com"
+  },
+  {
+    "id": "shopify",
+    "name": "Shopify",
+    "group": "支付与电商",
+    "url": "https://status.shopify.com/api/v2/summary.json",
+    "page": "https://status.shopify.com"
   }
 ]

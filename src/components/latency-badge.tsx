@@ -1,11 +1,15 @@
 import { useLayoutEffect, useRef } from "react";
 import { useTheme } from "@/hooks/use-theme";
 import { t } from "@/i18n";
-import type { ProbeResult } from "@/views/link/api";
 import { gsap } from "gsap";
 import { AnimatedValue } from "./animated-value";
 import { NumberTicker } from "./number-ticker";
 import { Pending } from "./toolkit";
+
+export interface ProbeResult {
+  samples: number[];
+  median: number | null;
+}
 
 export function LatencyBadge({
   result,

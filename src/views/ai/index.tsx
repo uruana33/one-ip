@@ -7,39 +7,53 @@ import {
   Pending,
 } from "@/components/toolkit";
 import { t } from "@/i18n";
-import { trace } from "@/lib/network";
+import { trace, type TraceResult } from "@/lib/network";
+import { queryKeys } from "@/lib/query-keys";
 import { getGeo, getDomesticIp } from "@/views/home/api";
 import { useQuery } from "@tanstack/react-query";
+import { checkDefaultExit, type DefaultExitResult } from "./default-exit";
 import { AiNetworkCheck } from "./network-check";
 import { AiPlatformLinks } from "./platform-links";
 import type { AiPlatform } from "./platforms";
+import { AI_DETAIL_SAMPLE_COUNT } from "./probe";
 
 export default function PlatformDiagnostics({
   platform,
 }: {
   platform: AiPlatform;
 }) {
-  const exit = useQuery({
-    queryKey: [platform.id, "exit"],
-    enabled: Boolean(platform.traceDomain),
-    queryFn: ({ signal }) => trace(platform.traceDomain!, signal),
+  const exit = useQuery<TraceResult | DefaultExitResult>({
+    queryKey: platform.traceDomain
+      ? queryKeys.ai.exit(platform.id)
+      : queryKeys.ai.defaultExit(),
+    queryFn: ({ signal }) =>
+      platform.traceDomain
+        ? trace(platform.traceDomain!, signal)
+        : checkDefaultExit(signal),
     staleTime: 60_000,
     retry: false,
   });
+  const exitIp = exit.data?.ip;
+  const observations =
+    exit.data && "sources" in exit.data ? exit.data.sources : null;
+  const displaySource =
+    exit.data && "displaySource" in exit.data ? exit.data.displaySource : null;
+  const traceData = exit.data && "source" in exit.data ? exit.data : undefined;
   const geo = useQuery({
-    queryKey: ["geoip", exit.data?.ip],
-    enabled: Boolean(exit.data?.ip),
-    queryFn: ({ signal }) => getGeo(exit.data!.ip, signal),
+    queryKey: queryKeys.geo.byIp(exitIp),
+    enabled: Boolean(exitIp),
+    queryFn: ({ signal }) => getGeo(exitIp!, signal),
     staleTime: 60_000,
     retry: false,
   });
   const domestic = useQuery({
-    queryKey: ["domestic-ip"],
+    queryKey: queryKeys.egress.domestic(),
     queryFn: ({ signal }) => getDomesticIp(signal),
+    enabled: Boolean(platform.traceDomain),
     retry: false,
   });
   const cf = useQuery({
-    queryKey: ["cf-exit"],
+    queryKey: queryKeys.egress.cloudflare(),
     queryFn: ({ signal }) => trace("1.1.1.1", signal),
     retry: false,
   });
@@ -58,47 +72,92 @@ export default function PlatformDiagnostics({
             </div>
           }
         >
-          {platform.traceDomain ? (
-            <>
-              <div className="ip-value text-primary">
-                {exit.isPending ? (
-                  <Pending>{t("正在检测出口…")}</Pending>
-                ) : (
-                  <IpText ip={exit.data?.ip} />
-                )}
-              </div>
-              <p className="text-xs leading-5 text-muted-foreground">
-                {exit.isError ? (
-                  t("出口查询失败，可能受网络或跨域限制。")
-                ) : geo.isFetching ? (
-                  <Pending>{t("查询归属信息…")}</Pending>
-                ) : (
-                  <>
-                    <CountryFlag
-                      code={geo.data?.country_code ?? exit.data?.country_code}
-                    />{" "}
-                    {[
-                      geo.data?.country ?? exit.data?.country_code,
-                      geo.data?.city,
-                      geo.data?.isp,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || t("归属信息暂不可用")}
-                  </>
-                )}
-              </p>
-            </>
-          ) : (
+          <p className="small muted">
+            {platform.traceDomain
+              ? t("平台实测出口")
+              : displaySource?.transport === "udp"
+                ? t("UDP 观察出口 · WebRTC/STUN")
+                : displaySource
+                  ? t("HTTP 出口 · {0}", [displaySource.label])
+                  : t("HTTP 观测待确认")}
+          </p>
+          <div className="ip-value text-primary">
+            {exit.isPending ? (
+              <Pending>{t("正在检测出口…")}</Pending>
+            ) : (
+              <IpText ip={exitIp} />
+            )}
+          </div>
+          <p className="text-xs leading-5 text-muted-foreground">
+            {exit.isError ? (
+              platform.traceDomain ? (
+                t("出口查询失败，可能受网络或跨域限制。")
+              ) : (
+                t("浏览器出口查询失败，可能受网络或跨域限制。")
+              )
+            ) : geo.isFetching ? (
+              <Pending>{t("查询归属信息…")}</Pending>
+            ) : (
+              <>
+                <CountryFlag code={geo.data?.country_code} />{" "}
+                {[geo.data?.country, geo.data?.city, geo.data?.isp]
+                  .filter(Boolean)
+                  .join(" · ") || t("归属信息暂不可用")}
+              </>
+            )}
+          </p>
+          <div className="ai-trace-meta" aria-live="polite">
+            <span>
+              {t("证据来源")}：{" "}
+              {platform.traceDomain
+                ? (traceData?.source ?? t("Cloudflare Trace"))
+                : displaySource
+                  ? t("默认出口观察 · {0}", [displaySource.label])
+                  : t("默认出口交叉观察")}
+            </span>
+            {platform.traceDomain && traceData?.colo ? (
+              <span>
+                {t("接入节点 / POP")}：<code>{traceData.colo}</code>
+              </span>
+            ) : null}
+          </div>
+          {!platform.traceDomain && (
             <p className="text-xs leading-5 text-muted-foreground">
-              {t("暂未找到可读取此平台出口的公开接口；以下地址仅供对照。")}
+              {t(
+                "此平台无可读取的专属出口接口；这些地址只代表各探测来源看到的线路，不能确认访问该平台的出口。",
+              )}
             </p>
+          )}
+          {observations && (
+            <div className="ai-exit-comparison">
+              <span className="small muted">{t("各线路观测")}</span>
+              {observations.map((source) => (
+                <div className="ai-exit-row" key={source.id}>
+                  <span className="muted">
+                    {source.transport === "udp"
+                      ? t("UDP · {0}", [source.label])
+                      : t("HTTP · {0}", [source.label])}
+                  </span>
+                  <span>
+                    {source.ip ? (
+                      <IpText ip={source.ip} />
+                    ) : (
+                      <span className="muted">{t("暂不可用")}</span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
           <div className="ai-exit-comparison">
             <span className="small muted">{t("其他出口对照")}</span>
-            {[
-              { query: domestic, title: t("国内 IPv4") },
-              { query: cf, title: "Cloudflare" },
-            ].map(({ query, title }) => (
+            {(platform.traceDomain
+              ? [
+                  { query: domestic, title: t("国内 IPv4") },
+                  { query: cf, title: "Cloudflare" },
+                ]
+              : [{ query: cf, title: "Cloudflare" }]
+            ).map(({ query, title }) => (
               <div className="ai-exit-row" key={title}>
                 <span className="muted">{title}</span>
                 <span>
@@ -112,14 +171,17 @@ export default function PlatformDiagnostics({
                 </span>
               </div>
             ))}
-            {(domestic.isError || cf.isError) && (
+            {(cf.isError || (platform.traceDomain && domestic.isError)) && (
               <p className="small muted">
                 {t("对照出口可能受连接或跨域限制。")}
               </p>
             )}
           </div>
         </ToolCard>
-        <AiNetworkCheck domains={[platform.domain]}>
+        <AiNetworkCheck
+          domains={[platform.domain]}
+          sampleCount={AI_DETAIL_SAMPLE_COUNT}
+        >
           <p className="small muted mt-3">
             {t("浏览器 HTTP 探测，不代表账号可用或模型权限。")}
           </p>

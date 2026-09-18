@@ -1,0 +1,374 @@
+/* ============================================================
+   Unified layout and motion pass
+   ============================================================ */
+:root {
+  --shell-max: 1240px;
+  --surface-0: #f4f8fb;
+  --surface-1: rgba(255, 255, 255, 0.84);
+  --surface-2: rgba(239, 246, 250, 0.9);
+  --line-strong: rgba(12, 74, 110, 0.18);
+  --cyan: #0891b2;
+  --lime: #65a30d;
+}
+
+.dark {
+  --surface-0: #050a12;
+  --surface-1: rgba(10, 20, 34, 0.78);
+  --surface-2: rgba(14, 29, 47, 0.72);
+  --line-strong: rgba(103, 232, 249, 0.24);
+  --cyan: #67e8f9;
+  --lime: #a3e635;
+}
+
+body {
+  background-color: var(--surface-0);
+  background-image:
+    linear-gradient(rgba(8, 145, 178, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(8, 145, 178, 0.045) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  max-width: var(--shell-max);
+  min-height: 100dvh;
+  padding: 20px 28px 72px;
+}
+
+.app-container::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--primary) 6%, transparent),
+    transparent 30%
+  );
+}
+
+.app-nav {
+  margin-bottom: 28px;
+  min-height: 52px;
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: var(--surface-1);
+  box-shadow:
+    0 18px 40px -28px rgba(2, 132, 199, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.app-nav [role="tab"] {
+  transition:
+    color 180ms var(--ease-enter),
+    background-color 180ms ease,
+    transform 180ms var(--ease-press);
+}
+
+.app-nav [role="tab"]:active {
+  transform: scale(0.96);
+}
+
+/* ==== Command bar HUD treatment (desktop): scan line, corner brackets,
+   ambient grid. Mobile keeps the liquid-glass bar. ==== */
+@media (min-width: 48.001rem) {
+  .app-nav {
+    position: relative;
+    border-color: color-mix(in srgb, var(--primary) 24%, var(--line-strong));
+    background-image:
+      linear-gradient(
+        90deg,
+        transparent,
+        color-mix(in srgb, var(--primary) 45%, transparent),
+        transparent
+      ),
+      linear-gradient(
+        color-mix(in srgb, var(--primary) 4%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--primary) 4%, transparent) 1px,
+        transparent 1px
+      );
+    background-size:
+      100% 1px,
+      26px 26px,
+      26px 26px;
+    background-position:
+      top left,
+      center,
+      center;
+    background-repeat: no-repeat, repeat, repeat;
+    box-shadow:
+      0 18px 40px -28px rgba(2, 132, 199, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 0 28px -10px color-mix(in srgb, var(--primary) 45%, transparent);
+  }
+
+  /* HUD corner brackets */
+  .app-nav::before {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--primary), var(--primary)) top left / 9px 1.5px,
+      linear-gradient(var(--primary), var(--primary)) top left / 1.5px 9px,
+      linear-gradient(var(--primary), var(--primary)) top right / 9px 1.5px,
+      linear-gradient(var(--primary), var(--primary)) top right / 1.5px 9px,
+      linear-gradient(var(--primary), var(--primary)) bottom left / 9px 1.5px,
+      linear-gradient(var(--primary), var(--primary)) bottom left / 1.5px 9px,
+      linear-gradient(var(--primary), var(--primary)) bottom right / 9px 1.5px,
+      linear-gradient(var(--primary), var(--primary)) bottom right / 1.5px 9px;
+    background-repeat: no-repeat;
+    opacity: 0.45;
+  }
+
+  /* Traveling scan highlight along the top edge */
+  .app-nav::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 25%;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--primary),
+      transparent
+    );
+    opacity: 0.9;
+    transform: translateX(-100%);
+  }
+
+  .dark .app-nav {
+    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+    background-image:
+      linear-gradient(
+        90deg,
+        transparent,
+        color-mix(in srgb, var(--primary) 60%, transparent),
+        transparent
+      ),
+      linear-gradient(
+        color-mix(in srgb, var(--primary) 5%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--primary) 5%, transparent) 1px,
+        transparent 1px
+      );
+    box-shadow:
+      0 18px 44px -24px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 0 32px -8px color-mix(in srgb, var(--primary) 35%, transparent);
+  }
+  .dark .app-nav::before {
+    opacity: 0.8;
+    filter: drop-shadow(0 0 3px var(--primary));
+  }
+}
+@media (min-width: 48.001rem) and (prefers-reduced-motion: no-preference) {
+  .app-nav::after {
+    animation: app-nav-scan 5.5s linear infinite;
+  }
+}
+@keyframes app-nav-scan {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}
+
+.tool-subnav {
+  gap: 5px;
+  margin: 0 0 24px;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface-1);
+  box-shadow: 0 14px 30px -26px rgba(2, 132, 199, 0.8);
+}
+
+.tool-subnav a {
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    transform 180ms var(--ease-press);
+}
+
+.tool-subnav a:active {
+  transform: scale(0.97);
+}
+.tool-subnav a[aria-current="page"] {
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  box-shadow: inset 0 0 18px color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.home-page {
+  animation: deck-enter 420ms var(--ease-enter) both;
+}
+
+.module-overview {
+  animation: deck-enter 420ms var(--ease-enter) both;
+}
+
+.home-page > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+.home-page > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+
+.home-page [data-slot="card"],
+.tool-card,
+.cyber-card,
+.cyber-cockpit-card {
+  border-color: var(--line-strong);
+  box-shadow: 0 18px 34px -30px rgba(2, 132, 199, 0.9);
+}
+
+.home-page [data-slot="card"]:hover,
+.tool-card:hover,
+.cyber-card:hover,
+.cyber-cockpit-card:hover {
+  transform: translateY(-3px);
+}
+
+.shortcut-grid {
+  gap: 14px;
+}
+
+.shortcut-grid > *,
+.tool-card,
+.home-page [data-slot="card"] {
+  animation: deck-card-in 420ms var(--ease-enter) both;
+}
+
+.shortcut-grid > *:nth-child(2) {
+  animation-delay: 45ms;
+}
+.shortcut-grid > *:nth-child(3) {
+  animation-delay: 90ms;
+}
+.shortcut-grid > *:nth-child(4) {
+  animation-delay: 135ms;
+}
+
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-top: auto;
+  padding: 18px 0 6px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.app-footer-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  min-height: 32px;
+}
+.app-footer-copy {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
+}
+.app-footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 2px;
+}
+.app-footer-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--foreground) 58%, var(--muted-foreground));
+  text-decoration: none;
+  transition:
+    color 150ms var(--ease-enter),
+    background-color 150ms var(--ease-enter);
+}
+.app-footer-link:hover,
+.app-footer-link:focus-visible {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--muted) 72%, transparent);
+}
+
+@keyframes deck-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes deck-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 48rem) {
+  .app-container {
+    padding: 12px 14px calc(110px + env(safe-area-inset-bottom, 0px));
+  }
+  .app-nav::after {
+    display: none;
+  }
+  .tool-subnav {
+    margin-bottom: 16px;
+  }
+  .app-footer {
+    gap: 2px 8px;
+    padding-bottom: 4px;
+    scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+  .app-footer-brand {
+    min-height: 28px;
+  }
+  .app-footer-link {
+    min-height: 28px;
+    padding: 0 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-page,
+  .shortcut-grid > *,
+  .tool-card,
+  .home-page [data-slot="card"] {
+    animation: none;
+  }
+}

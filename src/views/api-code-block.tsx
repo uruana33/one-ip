@@ -29,9 +29,18 @@ export function ApiCodeBlock({
     [code, language],
   );
   return (
-    <div className="api-code-block">
+    <div className="api-code-block cyber-card">
       <div className="api-code-header">
-        <span>{language === "json" ? "JSON" : "bash"}</span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full bg-[#ff5f56]" />
+            <span className="size-2.5 rounded-full bg-[#ffbd2e]" />
+            <span className="size-2.5 rounded-full bg-[#27c93f]" />
+          </div>
+          <span className="ml-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+            {language === "json" ? "JSON Payload" : "Terminal cURL"}
+          </span>
+        </div>
         <CopyButton value={code} />
       </div>
       <div dangerouslySetInnerHTML={{ __html: html }} />

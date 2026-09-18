@@ -1,8 +1,26 @@
 import { t } from "@/i18n";
 
-export const aiPlatforms = [
+export type AiCamp = "us" | "cn";
+
+export interface AiPlatformDef {
+  id: string;
+  camp: AiCamp;
+  name: string;
+  domain: string;
+  /** Cloudflare zone that serves a CORS-readable /cdn-cgi/trace (实测出口). */
+  traceDomain?: string;
+  apiUrl?: string;
+  docsUrl?: string;
+  docsLabel?: string;
+  statusId?: string;
+  statusPage?: string;
+  statusLabel?: string;
+}
+
+export const aiPlatforms: AiPlatformDef[] = [
   {
     id: "gpt",
+    camp: "us" as AiCamp,
     traceDomain: "chatgpt.com",
     apiUrl: "https://api.openai.com/v1",
     docsUrl: "https://platform.openai.com/docs/overview",
@@ -12,6 +30,7 @@ export const aiPlatforms = [
   },
   {
     id: "claude",
+    camp: "us" as AiCamp,
     traceDomain: "claude.ai",
     apiUrl: "https://api.anthropic.com",
     docsUrl: "https://platform.claude.com/docs/en/api/overview",
@@ -21,6 +40,7 @@ export const aiPlatforms = [
   },
   {
     id: "grok",
+    camp: "us" as AiCamp,
     traceDomain: "grok.com",
     apiUrl: "https://api.x.ai",
     docsUrl: "https://docs.x.ai/",
@@ -31,6 +51,7 @@ export const aiPlatforms = [
   },
   {
     id: "perplexity",
+    camp: "us" as AiCamp,
     traceDomain: "www.perplexity.ai",
     apiUrl: "https://api.perplexity.ai",
     docsUrl: "https://docs.perplexity.ai/",
@@ -40,6 +61,7 @@ export const aiPlatforms = [
   },
   {
     id: "gemini",
+    camp: "us" as AiCamp,
     apiUrl: "https://generativelanguage.googleapis.com",
     docsUrl: "https://ai.google.dev/gemini-api/docs",
     statusId: "31",
@@ -49,7 +71,18 @@ export const aiPlatforms = [
     statusLabel: t("AI Studio / Gemini API 状态"),
   },
   {
+    id: "copilot",
+    camp: "us" as AiCamp,
+    traceDomain: "copilot.microsoft.com",
+    docsUrl: "https://support.microsoft.com/copilot",
+    docsLabel: t("使用文档"),
+    statusId: "copilot",
+    name: "Copilot",
+    domain: "copilot.microsoft.com",
+  },
+  {
     id: "deepseek",
+    camp: "cn" as AiCamp,
     apiUrl: "https://api.deepseek.com",
     docsUrl: "https://api-docs.deepseek.com/",
     statusId: "32",
@@ -59,6 +92,7 @@ export const aiPlatforms = [
   },
   {
     id: "qwen",
+    camp: "cn" as AiCamp,
     apiUrl: "https://dashscope-us.aliyuncs.com/compatible-mode/v1",
     docsUrl:
       "https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope",
@@ -68,11 +102,30 @@ export const aiPlatforms = [
   },
   {
     id: "kimi",
+    camp: "cn" as AiCamp,
     apiUrl: "https://api.moonshot.cn/v1",
     docsUrl: "https://platform.moonshot.cn/docs/intro",
     statusId: "35",
     name: "Kimi",
     domain: "www.kimi.com",
   },
+  {
+    id: "glm",
+    camp: "cn" as AiCamp,
+    apiUrl: "https://open.bigmodel.cn/api/paas/v4",
+    docsUrl: "https://docs.bigmodel.cn/",
+    statusId: "zhipu",
+    name: t("智谱 GLM"),
+    domain: "chatglm.cn",
+  },
+  {
+    id: "doubao",
+    camp: "cn" as AiCamp,
+    apiUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    docsUrl: "https://www.volcengine.com/docs/82379",
+    statusId: "doubao",
+    name: t("豆包"),
+    domain: "www.doubao.com",
+  },
 ];
-export type AiPlatform = (typeof aiPlatforms)[number];
+export type AiPlatform = AiPlatformDef;

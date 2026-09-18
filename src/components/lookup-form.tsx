@@ -8,7 +8,9 @@ import {
   InputGroupAddon,
 } from "@/components/ui/input-group";
 import { t } from "@/i18n";
+import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Search } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -22,8 +24,10 @@ export function LookupForm({
   label = t("查询"),
   onSubmit,
   grouped = false,
+  tone = "default",
 }: {
   grouped?: boolean;
+  tone?: "default" | "display";
   value?: string;
   placeholder: string;
   busy: boolean;
@@ -44,8 +48,21 @@ export function LookupForm({
       <FieldGroup>
         <Field data-invalid={!!form.formState.errors.query}>
           <Container
-            className={grouped ? "lookup-input-group h-9" : "lookup-form"}
+            className={cn(
+              grouped && "lookup-input-group",
+              grouped && tone !== "display" && "h-9",
+              !grouped && "lookup-form",
+              tone === "display" && "lookup-form-display",
+            )}
           >
+            {grouped && tone === "display" ? (
+              <InputGroupAddon
+                align="inline-start"
+                className="lookup-form-lead"
+              >
+                <Search aria-hidden="true" />
+              </InputGroupAddon>
+            ) : null}
             <Control
               aria-label={placeholder}
               placeholder={placeholder}

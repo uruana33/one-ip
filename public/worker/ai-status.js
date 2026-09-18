@@ -4,7 +4,12 @@ import { parseTelegramStatus } from "./telegram-status.js";
 const unavailable = () => new HttpError(502, "官方状态数据暂不可用");
 
 async function pageText(url) {
-  const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(10_000),
+    headers: {
+      "User-Agent": "IP-Tools/1.0",
+    },
+  });
   if (!response.ok) throw unavailable();
   return response.text();
 }
@@ -132,6 +137,8 @@ export function parseGemini(data) {
 }
 
 export async function getAiStatus(service) {
+  if (Array.isArray(service.probe) && service.probe.length)
+    return probeService(service);
   if (service.id === "telegram")
     return parseTelegramStatus(
       await upstream(service.url, {
@@ -143,28 +150,18 @@ export async function getAiStatus(service) {
     return parseReplicate(
       await upstream(service.url, {
         headers: {
-          "User-Agent": "One-IP/1.0 (+https://github.com/zhihui-hu/one-ip)",
+          "User-Agent": "IP-Tools/1.0",
         },
       }),
     );
   }
   if (service.id === "32") {
-    let html;
+    // Prefer the official RSS when reachable; fall back to reachability probing
+    // when the upstream blocks datacenter egress (e.g. TLS reset).
     try {
-      html = await pageText(service.url);
+      return parseDeepSeek(await pageText(service.url));
     } catch {
-      throw new HttpError(
-        502,
-        "DeepSeek 官方订阅源连接失败，请稍后重试或查看官方页面。",
-      );
-    }
-    try {
-      return parseDeepSeek(html);
-    } catch {
-      throw new HttpError(
-        502,
-        "DeepSeek 官方状态数据解析失败，请查看官方页面。",
-      );
+      return getDeepSeekStatus();
     }
   }
   if (service.id === "31") {
@@ -191,6 +188,54 @@ export async function getAiStatus(service) {
     throw unavailable();
   }
   return upstream(service.url);
+}
+
+async function probeReachability(targets, okDescription, failDescription) {
+  const results = await Promise.allSettled(
+    targets.map(async ({ url }) => {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(10_000),
+        redirect: "manual",
+        headers: {
+          "User-Agent": "IP-Tools/1.0",
+        },
+      });
+      // Any HTTP response (even 4xx/5xx) proves the endpoint is reachable.
+      await response.body?.cancel();
+    }),
+  );
+  const reachable = results.filter(
+    (result) => result.status === "fulfilled",
+  ).length;
+  if (reachable === 0) throw new HttpError(502, failDescription);
+  return {
+    status: {
+      indicator: reachable === targets.length ? "none" : "minor",
+      description:
+        reachable === targets.length ? okDescription : "部分端点不可达",
+    },
+  };
+}
+
+export async function getDeepSeekStatus() {
+  const targets = [
+    { url: "https://api.deepseek.com/", label: "API 网关" },
+    { url: "https://www.deepseek.com/", label: "官网" },
+  ];
+  return probeReachability(
+    targets,
+    "DeepSeek 服务可访问",
+    "DeepSeek 服务不可达",
+  );
+}
+
+async function probeService(service) {
+  const targets = service.probe.map((url) => ({ url, label: url }));
+  return probeReachability(
+    targets,
+    service.probeOkDescription ?? `${service.name} 服务可访问`,
+    service.probeFailDescription ?? `${service.name} 服务不可达`,
+  );
 }
 
 export function parseGrokFeed(xml) {

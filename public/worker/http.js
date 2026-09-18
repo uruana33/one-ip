@@ -6,12 +6,13 @@ export class HttpError extends Error {
     this.status = status;
   }
 }
-export function json(data, status = 200) {
+export function json(data, status = 200, headers = {}) {
   return Response.json(data, {
     status,
     headers: {
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
+      ...headers,
     },
   });
 }
@@ -105,6 +106,31 @@ export async function boundedJson(
     throw new HttpError(errorStatus, "内容不是有效 JSON");
   }
 }
+
+export async function boundedText(response, maxBytes = 400_000) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new HttpError(502, "页面内容为空");
+  let size = 0;
+  const chunks = [];
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) throw new HttpError(502, "页面内容过大");
+      chunks.push(value);
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return new TextDecoder().decode(bytes);
+}
 export async function upstream(url, init = {}, maxBytes = 2_000_000) {
   let response;
   try {
@@ -126,10 +152,10 @@ export async function upstream(url, init = {}, maxBytes = 2_000_000) {
   }
   return boundedJson(response, maxBytes);
 }
-export async function inputJson(request) {
+export async function inputJson(request, maxBytes = 4096) {
   if (!request.headers.get("Content-Type")?.includes("application/json"))
     throw new HttpError(415, "需要 application/json");
-  const value = await boundedJson(request, 4096, 400);
+  const value = await boundedJson(request, maxBytes, 400);
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new HttpError(400, "需要 JSON 对象");
   return value;
