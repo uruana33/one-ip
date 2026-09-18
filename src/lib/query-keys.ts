@@ -5,7 +5,7 @@ type QueryKey = readonly unknown[];
  * source normalization or response parsing changes. Keeping both values in
  * diagnostic keys prevents an in-memory query from crossing a contract change.
  */
-export const DIAGNOSTIC_REGISTRY_VERSION = "home-sources-v1" as const;
+export const DIAGNOSTIC_REGISTRY_VERSION = "home-sources-v3" as const;
 export const DIAGNOSTIC_PARSER_VERSION = "source-parser-v1" as const;
 export const diagnosticQueryVersions = {
   registry: DIAGNOSTIC_REGISTRY_VERSION,
@@ -22,16 +22,13 @@ export const queryKeys = {
   },
   ai: {
     exit: (platformId: string) => ["ai-exit", platformId] as const,
+    defaultExit: () => ["ai-default-exit", "v2"] as const,
     network: (domains: readonly string[]) =>
       ["ai-network", "v3", ...domains] as const,
     preview: (platformId: string) => ["ai-preview", "v3", platformId] as const,
   },
   home: {
     browserIp: (version = 4) => ["browser-ip", version] as const,
-    connectivity: (url: string, round = 0) =>
-      ["connectivity", url, round] as const,
-    connectivityProgress: (url: string, round = 0) =>
-      ["connectivity-progress", url, round] as const,
     split: (sourceId: string, round: number) =>
       [
         "split",
@@ -40,11 +37,22 @@ export const queryKeys = {
         sourceId,
         round,
       ] as const,
-    dns: () => ["home-dns"] as const,
-    webrtc: () => ["home-webrtc"] as const,
   },
   ip: {
     classification: (ip: string) => ["lookup-ip-coffee", ip] as const,
+    cross: (ip: string) => ["lookup-ip-cross", ip] as const,
+    /**
+     * A latency run belongs to the address it measured, so the result is
+     * cached per IP and survives tab switches and back navigation.
+     */
+    latency: (ip: string) => ["ip-latency", ip] as const,
+  },
+  ping: {
+    /**
+     * The probe catalog is a property of the service, not of the address being
+     * tested, so the ping page and the latency widget share one cache entry.
+     */
+    catalog: () => ["ping-node-catalog-v3"] as const,
   },
   status: {
     service: (serviceId: string) => ["service-status", serviceId] as const,
@@ -53,15 +61,12 @@ export const queryKeys = {
 
 export const homeRefreshPrefixes = [
   "browser-ip",
-  "connectivity",
-  "connectivity-progress",
   "split",
   "geo",
   "lookup-ip-coffee",
+  "lookup-ip-cross",
   "ai-preview",
   "service-status",
-  "home-dns",
-  "home-webrtc",
   "webrtc-diagnostic",
   "home-browser-fingerprint",
   "egress",

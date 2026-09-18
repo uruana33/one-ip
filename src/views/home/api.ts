@@ -10,7 +10,10 @@ import { createConcurrencyLimiter, endpoint, request } from "@/lib/network";
 import { executeSource } from "@/lib/source-probe";
 import type { Geo } from "@/lib/types";
 
-const diagnosticLimiter = createConcurrencyLimiter(4);
+const diagnosticLimiter = createConcurrencyLimiter(8);
+const geoLimiter = createConcurrencyLimiter(2);
+const SITE_PROBE_PRIORITY = 8;
+
 export const getMyIp = (signal?: AbortSignal) =>
   diagnosticLimiter.run(signal, () => endpoint<Geo>("/me", { signal }), 5);
 
@@ -71,11 +74,7 @@ async function getGeoUnbounded(
   }
 }
 export function getGeo(ip: string, signal?: AbortSignal, timeoutMs = 3000) {
-  return diagnosticLimiter.run(
-    signal,
-    () => getGeoUnbounded(ip, signal, timeoutMs),
-    10,
-  );
+  return geoLimiter.run(signal, () => getGeoUnbounded(ip, signal, timeoutMs));
 }
 async function getDomesticIpUnbounded(signal?: AbortSignal): Promise<Geo> {
   const sources = [
@@ -121,7 +120,11 @@ export function getDomesticIp(signal?: AbortSignal) {
 }
 export type Site = SourceDefinition;
 export function detectSite(site: Site, signal?: AbortSignal) {
-  return diagnosticLimiter.run(signal, () => executeSource(site, signal));
+  return diagnosticLimiter.run(
+    signal,
+    () => executeSource(site, signal),
+    SITE_PROBE_PRIORITY,
+  );
 }
 
 export async function detectSiteResult(
@@ -158,34 +161,42 @@ export async function detectSiteResult(
       },
     );
   }
-  return diagnosticLimiter.run(signal, async () => {
-    const startedAt = performance.now();
-    const timing = () => {
-      const totalMs = Math.round(performance.now() - queuedAt);
-      const queueWaitMs = Math.round(startedAt - queuedAt);
-      return {
-        latencyMs: totalMs,
-        queueWaitMs,
-        networkMs: totalMs - queueWaitMs,
-        totalMs,
-        capturedAt: new Date().toISOString(),
-      };
-    };
-    try {
-      const geo = await executeSource(site, signal);
-      return diagnosticResult(context, {
-        status: "ok",
-        ip: geo.ip,
-        ...timing(),
-      });
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      return diagnosticResult(
-        { ...context, verified: false },
-        { ...classifyDiagnosticError(error), ...timing() },
-      );
-    }
-  });
+  const attempt = () =>
+    diagnosticLimiter.run(
+      signal,
+      async () => {
+        const startedAt = performance.now();
+        const timing = () => {
+          const totalMs = Math.round(performance.now() - queuedAt);
+          const queueWaitMs = Math.round(startedAt - queuedAt);
+          return {
+            latencyMs: totalMs,
+            queueWaitMs,
+            networkMs: totalMs - queueWaitMs,
+            totalMs,
+            capturedAt: new Date().toISOString(),
+          };
+        };
+        try {
+          const geo = await executeSource(site, signal);
+          return diagnosticResult(context, {
+            status: "ok",
+            ip: geo.ip,
+            ...timing(),
+          });
+        } catch (error) {
+          if (signal?.aborted) throw error;
+          return diagnosticResult(
+            { ...context, verified: false },
+            { ...classifyDiagnosticError(error), ...timing() },
+          );
+        }
+      },
+      SITE_PROBE_PRIORITY,
+    );
+  const first = await attempt();
+  if (first.status !== "timeout" || signal?.aborted) return first;
+  return attempt();
 }
 
 async function getBrowserIpUnbounded(

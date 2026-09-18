@@ -1,6 +1,6 @@
-<img src="public/icon.svg" alt="One IP Logo" width="96" height="96" />
+<img src="public/icon.svg" alt="Logo" width="96" height="96" />
 
-# One IP
+# IP 网络工具
 
 <p align="left">
   <img src="https://img.shields.io/badge/React-19-282C34?logo=react&amp;logoColor=61DAFB" alt="React 19" />
@@ -12,12 +12,11 @@
   <img src="https://img.shields.io/badge/Jotai-000000" alt="Jotai" />
   <img src="https://img.shields.io/badge/TanStack_Query-FF4154?logo=reactquery&amp;logoColor=white" alt="TanStack Query" />
   <img src="https://img.shields.io/badge/Cloudflare_Workers-F38020?logo=cloudflareworkers&amp;logoColor=white" alt="Cloudflare Workers" />
-  <img src="https://img.shields.io/badge/Leaflet-199900?logo=leaflet&amp;logoColor=white" alt="Leaflet" />
   <img src="https://img.shields.io/badge/pnpm-10-F69220?logo=pnpm&amp;logoColor=white" alt="pnpm 10" />
   <img src="https://img.shields.io/badge/Prettier-F7B93E?logo=prettier&amp;logoColor=black" alt="Prettier" />
 </p>
 
-IP 查询、网络诊断、浏览器检测与 AI 服务状态工具箱。
+IP 查询、网络诊断与 AI 服务状态工具箱。
 
 **中文** · [English](README.en.md)
 
@@ -37,25 +36,23 @@ IP 查询、网络诊断、浏览器检测与 AI 服务状态工具箱。
 4. 构建命令填 `pnpm build`，部署命令填 `pnpm deploy`。使用 Node.js 24 和 pnpm 10.32.1，根目录保持默认。
 5. 点击部署，完成后打开 `workers.dev` 地址。自定义域名在 Worker 设置中绑定。
 
-项目使用 **Cloudflare Workers + Static Assets**，`/api/*` 接口需要 Worker。基础功能无需应用环境变量或 API Key。Turnstile 和 reCAPTCHA 的配置见“验证体验”。
+项目使用 **Cloudflare Workers + Static Assets**，`/api/*` 接口需要 Worker。基础功能无需应用环境变量或 API Key。
 
 Workers Builds 会在 `main` 收到提交时构建和部署。上方按钮使用原项目地址；需要保留 Fork 关系和更新工作流时，请按教程导入你的 Fork。
 
 ## 功能
 
-| 模块             | 支持的功能                                                                                                |
-| ---------------- | --------------------------------------------------------------------------------------------------------- |
-| 首页概览         | 国内与外部 IPv4 探测、归属地、运营商、信誉分与类型标签                                                    |
-| IP 详情          | IPv4 / IPv6 查询、ASN、CIDR、注册信息、网络属性、风险标记、地图、多源位置对比与关联地址；字段取决于数据源 |
-| 网站分流与连通性 | 检查不同网站的出口 IP，按地址汇总；多轮 HTTP 采样、中位耗时与排序                                         |
-| 全球 Ping        | Globalping 全球探针、地区与城市选择、延迟与丢包、分批返回结果                                             |
-| DNS / CDN        | DNS 解析出口、CDN 命中节点及可读取的缓存信息                                                              |
-| WHOIS            | 域名、IP、ASN 的 RDAP 注册资料与原始响应                                                                  |
-| 浏览器检测       | 环境信息、FingerprintJS 指纹、环境一致性、CreepJS 深度检测、自动化特征、权限与 WebRTC                     |
-| AI 访问          | ChatGPT、Claude、Grok、Perplexity、Gemini、DeepSeek、通义千问、Kimi 的资源连通性与部分平台出口对照        |
-| 服务状态         | 聚合官方运行状态、故障、维护、组件与事件详情                                                              |
-| 使用体验         | 中英文、深浅主题、移动端布局与底部抽屉、查询历史、二维码分享与复制链接                                    |
-| 可选验证体验     | Cloudflare Turnstile、Google reCAPTCHA v3；入口需要配置和域名匹配                                         |
+| 模块      | 支持的功能                                                                                          |
+| --------- | --------------------------------------------------------------------------------------------------- |
+| 首页概览  | 国内与外部 IPv4 探测、归属地、运营商、信誉分与类型标签                                              |
+| IP 详情   | IPv4 / IPv6 查询、ASN、CIDR、注册信息、网络属性、风险标记、多源位置对比与关联地址；字段取决于数据源 |
+| 出口观测  | 检查不同网站的出口 IP，按地址汇总分流；DNS 出口与 CDN 节点                                          |
+| 全球 Ping | Globalping 全球探针、地区与城市选择、延迟与丢包、分批返回结果                                       |
+| DNS / CDN | DNS 解析出口、CDN 命中节点及可读取的缓存信息                                                        |
+| WHOIS     | 域名、IP、ASN 的 RDAP 注册资料与原始响应                                                            |
+| AI 访问   | ChatGPT、Claude、Grok、Perplexity、Gemini、DeepSeek、通义千问、Kimi 的资源连通性与部分平台出口对照  |
+| 服务状态  | 聚合官方运行状态、故障、维护、组件与事件详情                                                        |
+| 使用体验  | 中英文、深浅主题、移动端布局与底部抽屉、查询历史、二维码分享与复制链接                              |
 
 第三方服务的限流和跨域限制会影响查询结果。HTTP 耗时与 ICMP Ping 的测量方式不同。IP 类型和信誉分供参考，不代表 AI 平台的官方判断。
 
@@ -147,44 +144,17 @@ pnpm deploy
 
 `pnpm deploy` 使用 `dist` 中的构建产物，运行前需要执行 `pnpm build`。`make deploy` 包含版本更新、构建和部署，无需密钥文件。
 
-## 验证体验（可选）
-
-选择 Turnstile 或 reCAPTCHA，填写 Site Key、Secret 和允许访问的域名。配置齐全且访问域名匹配时，页面显示“验证体验”入口；缺少配置时隐藏入口。
-
-| 提供商       | 配置项                                                          |
-| ------------ | --------------------------------------------------------------- |
-| Turnstile    | `TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET`、`TURNSTILE_HOSTNAMES` |
-| reCAPTCHA v3 | `RECAPTCHA_SITE_KEY`、`RECAPTCHA_SECRET`、`RECAPTCHA_HOSTNAMES` |
-
-本地开发：把[配置示例](docs/config/challenges.env.example)复制到根目录 `.dev.vars`，填写密钥并重启。文件存在时编辑原文件。域名用逗号分隔，填写格式为 `example.com`，提供商控制台需要允许对应域名。
-
-线上部署：在 Worker → Settings → Variables and Secrets 填写配置，或执行 `pnpm exec wrangler secret put 名称`。使用配置文件时，把 `.secrets.example` 复制为 `.secrets.production.env`，填写后运行：
-
-```bash
-node scripts/sync-worker-secrets.mjs production --check
-node scripts/sync-worker-secrets.mjs production
-```
-
-脚本上传非空项，保留已有 Secret，跳过缺失的可选文件。敏感文件在 Git 忽略列表中。Secret 应放在 Worker 配置中，不能放进 `VITE_*`。`/api/browser/challenges` 的 `configured` 字段用于检查配置结果。
-
-reCAPTCHA 使用 v3 评分型密钥。服务端校验 hostname、`browser_check` action 和 score，通过阈值为 0.5。v2 复选框和 Enterprise assessment 不在支持范围内，生产环境不接受 localhost。
-
 ## 项目结构与数据来源
 
 - `src/app.css`：界面样式；`src/components/ui`：shadcn/ui 组件。
-- `src/views`：网络、浏览器、AI 与状态页面；`public/worker`：Worker API。
+- `src/views`：网络、AI 与状态页面；`public/worker`：Worker API。
 - Net.Coffee：IP 详情，展示字段取决于接口返回。
 - Globalping：全球测量；IANA / RDAP：注册资料；各平台官方状态源：运行状态。
-- FingerprintJS 与 CreepJS：浏览器检测，模块说明见 [vendor/browser-diagnostics](vendor/browser-diagnostics/README.md)。
 
 欢迎提交 Issue 和改进建议。分享截图前，请遮盖 IP、位置和指纹标识等隐私信息。
 
-### 人机校验与 Claude 环境对照
-
-人机校验在页面打开后自动运行，展示校验阶段、Turnstile 是否出现交互、reCAPTCHA v3 分数及本站阈值（0.50）。单轮最多等待 45 秒，可重新开始；结果仅代表本站本次校验。
-
-可选的第二个 Turnstile 组件使用 `TURNSTILE_NONINTERACTIVE_SITE_KEY`、`TURNSTILE_NONINTERACTIVE_SECRET`、`TURNSTILE_NONINTERACTIVE_HOSTNAMES`。需在 Cloudflare 为该独立组件选择 **Non-interactive** 模式，域名须匹配；未配置时不显示。原有 `TURNSTILE_*` 组件保持其控制台配置。前端参数不能把同一个 Key 切换成另一种组件模式。
+### Claude 环境对照
 
 Claude 页面自动比较 `claude.ai` 与 `claude.com` 出口，并展示 DNS、WebRTC 和语言、时区等浏览器信息。检测失败、不同出口或中文偏好均不直接代表账号风险。未接入 Cloudflare 企业版 Bot Management；不展示推算的企业版分数。
 
-Claude 页面还内嵌自动人机校验，并本地检测简繁中文字体、厂商字体、UA / Client Hints、Intl 区域及 Canvas 国旗渲染。检测字典参考 LinXiaoTao/FuckClaude，来源摘要与 MIT 许可证位于 `vendor/claude-environment/`。不使用其风险分数；不把字体、厂商或中文偏好解释为国籍或封禁概率。页面仅展示简洁人机状态和逐项更新的检测日志，不提供评分卡或文本输入。
+Claude 页面本地检测简繁中文字体、厂商字体、UA / Client Hints、Intl 区域及 Canvas 国旗渲染。检测字典参考 LinXiaoTao/FuckClaude，来源摘要与 MIT 许可证位于 `vendor/claude-environment/`。不使用其风险分数；不把字体、厂商或中文偏好解释为国籍或封禁概率。页面仅展示简洁人机状态和逐项更新的检测日志，不提供评分卡或文本输入。

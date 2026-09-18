@@ -1,9 +1,9 @@
 import { getAiStatus } from "./ai-status.js";
-import { challengeConfig, verifyChallenge } from "./challenges.js";
 import { getCloudStatus } from "./cloud-status.js";
 import { cfGeo, geoIp, secondaryGeo } from "./geo.js";
 import { HttpError, inputJson, json, publicIp } from "./http.js";
 import { siteIcon } from "./icons.js";
+import { ipCross } from "./ip-cross.js";
 import { ipHealth } from "./ip-health.js";
 import { ipNetwork } from "./ip-network.js";
 import { ipType } from "./ip-type.js";
@@ -11,7 +11,6 @@ import { startPing, pingResult, pingNodes } from "./ping.js";
 import { normalizeStatus } from "./service-status.js";
 import services from "./services.json";
 import { cachedStatus, STATUS_CACHE_CONTROL } from "./status-cache.js";
-import { tlsFingerprint } from "./tls-fingerprint.js";
 import { reportWebRtc } from "./webrtc.js";
 import { lookupRegistration } from "./whois.js";
 
@@ -52,7 +51,7 @@ export default {
     }
     try {
       const origin = request.headers.get("Origin");
-      if (origin && origin !== url.origin)
+      if (origin && origin !== url.origin && env.LOCAL_DEV !== "true")
         throw new HttpError(403, "仅支持同源调用");
       if (!["GET", "POST"].includes(request.method))
         throw new HttpError(405, "不支持此请求方法");
@@ -64,25 +63,14 @@ export default {
       const path = url.pathname.slice(4).replace(/\/$/, "");
       if (path === "/dns" || path.startsWith("/dns/"))
         throw new HttpError(404, "接口不存在");
-      const isAction =
-        path === "/ping/start" ||
-        path === "/browser/challenges/verify" ||
-        path === "/webrtc/report";
+      const isAction = path === "/ping/start" || path === "/webrtc/report";
       if (
         (isAction && request.method !== "POST") ||
         (!isAction && request.method !== "GET")
       )
         throw new HttpError(405, "不支持此请求方法");
-      if (path === "/browser/tls-fingerprint")
-        return json(tlsFingerprint(request));
-      if (path === "/browser/challenges")
-        return json(challengeConfig(env, url.hostname));
       if (path.startsWith("/icons/"))
         return await siteIcon(decodeURIComponent(path.slice(7)));
-      if (path === "/browser/challenges/verify")
-        return json(
-          await verifyChallenge(await inputJson(request), env, url.hostname),
-        );
       if (path === "/webrtc/report")
         return json(reportWebRtc(request, await inputJson(request, 20_000)));
       if (path === "/me") {
@@ -95,6 +83,8 @@ export default {
         return json(data);
       }
       if (path === "/ip/health") return await ipHealth(request, env);
+      if (path.startsWith("/ip/cross/"))
+        return await ipCross(decodeURIComponent(path.slice(10)), url.origin);
       if (path.startsWith("/ip-type/"))
         return await ipType(decodeURIComponent(path.slice(9)), url.origin);
       if (path.startsWith("/geoip/"))

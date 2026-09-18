@@ -45,7 +45,7 @@ test("English runtime translates messages and switches with blocked storage with
   try {
     const runtime = await import("../src/i18n/index.ts?english-test");
     assert.equal(runtime.locale, "en");
-    assert.equal(runtime.t("网络检测"), "Network checks");
+    assert.equal(runtime.t("出口检测"), "Egress checks");
     assert.equal(runtime.t("请求失败 ({0})", [503]), "Request failed (503)");
     assert.equal(runtime.t("外部数据源暂不可用 (502)"), "Upstream source unavailable (502)");
     assert.equal(runtime.t("Untranslated upstream text"), "Untranslated upstream text");

@@ -7,31 +7,29 @@ import {
   useLocation,
   useParams,
 } from "react-router-dom";
-import { PageHelpAlert } from "@/components/page-help-alert";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import { AppLayout } from "@/layout";
 import { legacyRoutes } from "@/layout/routes";
 import { ToolLayout } from "@/layout/tool-layout";
 import { aiPlatforms } from "@/views/ai/platforms";
+import { lookupLocation } from "@/views/lookup/href";
 
 const PlatformDiagnostics = lazy(() => import("@/views/ai"));
-const ModuleOverview = lazy(() => import("@/views/module-overview"));
+const AiFleetBoard = lazy(() =>
+  import("@/views/ai/fleet-board").then((module) => ({
+    default: module.AiFleetBoard,
+  })),
+);
 const HomePage = lazy(() => import("@/views/home"));
 const ClaudePage = lazy(() => import("@/views/claude"));
 const GptPage = lazy(() => import("@/views/gpt"));
-const IpPage = lazy(() => import("@/views/ip"));
-const LinkPage = lazy(() => import("@/views/link"));
-const ExitsPage = lazy(() => import("@/views/link/exits"));
-const BrowserPage = lazy(() => import("@/views/browser"));
-const ChallengesPage = lazy(() => import("@/views/browser/challenges"));
-const PingPage = lazy(() => import("@/views/ping"));
+const LookupPage = lazy(() => import("@/views/lookup"));
+const EgressPage = lazy(() => import("@/views/egress"));
+const WebRtcPage = lazy(() => import("@/views/webrtc"));
 const StatusPage = lazy(() => import("@/views/status"));
-const WhoisPage = lazy(() => import("@/views/whois"));
 const ClaudeStatusPage = lazy(() => import("@/views/claude/status"));
 const GptStatusPage = lazy(() => import("@/views/gpt/status"));
-const CdnPage = lazy(() => import("@/views/cdn"));
-const DnsExitPage = lazy(() => import("@/views/dns-exit"));
 const ApiUsagePage = lazy(() => import("@/views/api-usage"));
 const PolicyPage = lazy(() => import("@/views/policy"));
 function Redirect({ to }: { to: string }) {
@@ -49,6 +47,16 @@ function Redirect({ to }: { to: string }) {
   );
 }
 
+function RedirectLookup({ view }: { view: "whois" | "ping" }) {
+  const { search, hash } = useLocation();
+  const params = new URLSearchParams(search);
+  const q = params.get("q") ?? params.get("host") ?? "";
+  const to = lookupLocation(q, q || view === "ping" ? view : undefined);
+  return (
+    <Navigate replace to={{ pathname: to.pathname, search: to.search, hash }} />
+  );
+}
+
 export function App() {
   return (
     <Routes>
@@ -57,44 +65,37 @@ export function App() {
         <Route path="docs/api" element={<ApiUsagePage />} />
         <Route path="terms" element={<PolicyPage page="terms" />} />
         <Route path="privacy" element={<PolicyPage page="privacy" />} />
+        <Route path="network/ip">
+          <Route index element={<LookupPage />} />
+          <Route path=":ip" element={<LookupPage />} />
+        </Route>
+        <Route path="network/whois" element={<RedirectLookup view="whois" />} />
+        <Route path="network/ping" element={<RedirectLookup view="ping" />} />
         <Route path="network" element={<ToolLayout group="network" />}>
+          <Route index element={<Navigate replace to="/network/egress" />} />
           <Route
-            index
-            element={<ModuleOverview key="network" group="network" />}
+            path="connectivity"
+            element={<Navigate replace to="/network/ip" />}
           />
-          <Route path="ip">
-            <Route index element={<IpPage />} />
-            <Route path=":ip" element={<IpPage />} />
-          </Route>
-          <Route path="whois" element={<WhoisPage />} />
-          <Route path="connectivity" element={<LinkPage />} />
-          <Route path="exits" element={<ExitsPage />} />
-          <Route path="ping" element={<PingPage />} />
-          <Route path="cdn" element={<CdnPage />} />
-          <Route path="dns" element={<DnsExitPage />} />
-        </Route>
-        <Route path="browser" element={<ToolLayout group="browser" />}>
+          <Route path="egress" element={<EgressPage />} />
+          {/* The merged observation deck replaced three sibling pages. */}
           <Route
-            index
-            element={<ModuleOverview key="browser" group="browser" />}
+            path="exits"
+            element={<Navigate replace to="/network/egress" />}
           />
-          {[
-            "environment",
-            "fingerprint",
-            "consistency",
-            "automation",
-            "privacy",
-          ].map((page) => (
-            <Route
-              key={page}
-              path={page}
-              element={<BrowserPage key={page} page={page} />}
-            />
-          ))}
-          <Route path="challenges" element={<ChallengesPage />} />
+          <Route
+            path="dns"
+            element={<Navigate replace to="/network/egress?tab=dns" />}
+          />
+          <Route
+            path="cdn"
+            element={<Navigate replace to="/network/egress?tab=cdn" />}
+          />
         </Route>
+        <Route path="webrtc" element={<WebRtcPage />} />
+        <Route path="browser/*" element={<Navigate replace to="/" />} />
         <Route path="ai" element={<ToolLayout group="ai" />}>
-          <Route index element={<ModuleOverview key="ai" group="ai" />} />
+          <Route index element={<AiFleetBoard />} />
           <Route path="gpt" element={<GptPage />} />
           <Route path="claude" element={<ClaudePage />} />
           {aiPlatforms
@@ -110,15 +111,7 @@ export function App() {
             ))}
         </Route>
         <Route path="status">
-          <Route
-            index
-            element={
-              <>
-                <PageHelpAlert />
-                <StatusPage />
-              </>
-            }
-          />
+          <Route index element={<StatusPage />} />
           <Route path="openai" element={<GptStatusPage />} />
           <Route path="claude" element={<ClaudeStatusPage />} />
         </Route>
@@ -131,7 +124,7 @@ export function App() {
             <section className="status-line">
               <h1>{t("404 · 页面不存在")}</h1>
               <Button variant="outline" asChild>
-                <Link to="/">{t("返回概览")}</Link>
+                <Link to="/">{t("返回首页")}</Link>
               </Button>
             </section>
           }

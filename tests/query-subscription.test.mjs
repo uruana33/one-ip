@@ -4,7 +4,7 @@ import { QueryClient, QueryObserver, skipToken } from "@tanstack/react-query";
 
 test("cache-only progress subscriptions receive updates without starting a fetch", () => {
   const client = new QueryClient();
-  const key = ["connectivity-progress", "https://example.com", 0];
+  const key = ["cache-progress", "https://example.com", 0];
   const observer = new QueryObserver(client, { queryKey: key, queryFn: skipToken, enabled: false });
   let latest;
   const stop = observer.subscribe(result => { latest = result; });
@@ -15,7 +15,7 @@ test("cache-only progress subscriptions receive updates without starting a fetch
 });
 test("cache-only summary observers do not prevent an active observer from refreshing", async () => {
   const client = new QueryClient();
-  const key = ["connectivity", "https://example.com", 0];
+  const key = ["cache-summary", "https://example.com", 0];
   let calls = 0;
   const summary = new QueryObserver(client, {queryKey:key, queryFn:skipToken, enabled:false});
   const stop = summary.subscribe(() => {});
@@ -30,7 +30,7 @@ test("cache-only summary observers do not prevent an active observer from refres
 
 test("home reset restarts probes with a disabled summary observer attached", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const queryKey = ["connectivity", "https://example.com", 0];
+  const queryKey = ["cache-summary", "https://example.com", 0];
   let calls = 0;
   const queryFn = async () => ({ samples: [++calls], median: calls });
   const active = new QueryObserver(client, { queryKey, queryFn });

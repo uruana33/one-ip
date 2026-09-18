@@ -11,12 +11,16 @@ test("Claude and Perplexity read and validate same-domain trace responses", asyn
         assert.equal(options.mode, "cors");
         return new Response("ip=1.1.1.1\ncolo=SIN\nloc=SG");
       };
-      assert.equal((await probeAiDomain(domain)).status, "response");
+      const result = await probeAiDomain(domain);
+      assert.equal(result.status, "response");
+      assert.equal(result.samples.length, 1);
+      assert.equal(result.failures, 0);
+      assert.ok(result.median >= 0);
     }
     globalThis.fetch = async () => new Response("<html>challenge</html>");
-    assert.equal((await probeAiDomain("claude.ai")).status, "unknown");
+    assert.equal((await probeAiDomain("claude.ai")).status, "restricted");
     globalThis.fetch = async () => new Response("blocked", {status:403});
-    assert.equal((await probeAiDomain("claude.ai")).status, "unknown");
+    assert.equal((await probeAiDomain("claude.ai")).status, "restricted");
   } finally { globalThis.fetch = original; }
 });
 test("Gemini probes its cross-origin robots resource instead of the missing icon", async () => {
@@ -32,7 +36,51 @@ test("failed probes are skipped without retries and cancellation is preserved", 
   try {
     assert.equal((await probeAiDomain("www.perplexity.ai")).status,"unknown"); assert.equal(calls,1);
     globalThis.fetch = async () => { throw new TypeError("blocked"); };
-    const result = await probeAiDomain("www.perplexity.ai"); assert.equal(result.status,"unknown"); assert.equal(result.samples.length,1);
+    const result = await probeAiDomain("www.perplexity.ai"); assert.equal(result.status,"unknown"); assert.equal(result.samples.length,1); assert.equal(result.failures,1);
     const controller=new AbortController(); controller.abort(); await assert.rejects(probeAiDomain("gemini.google.com",controller.signal), {name:"AbortError"});
   } finally { globalThis.fetch = original; }
+});
+
+test("detail probes support a bounded number of samples and summarize successful attempts", async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, "https://claude.ai/cdn-cgi/trace");
+    assert.equal(options.mode, "cors");
+    calls++;
+    if (calls === 2) throw new TypeError("temporary network failure");
+    return new Response("ip=1.1.1.1\ncolo=SIN\nloc=SG");
+  };
+  try {
+    const result = await probeAiDomain("claude.ai", undefined, { sampleCount: 3 });
+    assert.equal(calls, 3);
+    assert.equal(result.samples.length, 3);
+    assert.equal(result.failures, 1);
+    assert.equal(result.samples.filter((sample) => sample < 0).length, 1);
+    assert.ok(result.median >= 0);
+    assert.equal(result.status, "response");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("restricted status is retained when every readable sample is denied", async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return new Response("blocked", { status: 429 });
+  };
+  try {
+    const result = await probeAiDomain("www.perplexity.ai", undefined, {
+      sampleCount: 3,
+    });
+    assert.equal(calls, 3);
+    assert.deepEqual(result.samples, [-1, -1, -1]);
+    assert.equal(result.failures, 3);
+    assert.equal(result.median, null);
+    assert.equal(result.status, "restricted");
+  } finally {
+    globalThis.fetch = original;
+  }
 });

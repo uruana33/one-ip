@@ -38,7 +38,7 @@ export default function ApiUsagePage() {
       </h1>
       <p className="leading-7 text-muted-foreground">
         {t(
-          "One IP 提供公开 API，可查询请求出口的 IP、位置信息、ASN、信誉分和风险标记，无需 API Key。",
+          "本站提供公开 API，可查询请求出口的 IP、位置信息、ASN、信誉分和风险标记，无需 API Key。",
         )}
       </p>
       <p className="break-words leading-7">

@@ -194,7 +194,7 @@ export function EnvironmentScore() {
     );
   }
   return (
-    <Card>
+    <Card className="cyber-card hud-frame">
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle>{t("Claude 中国用户检测")}</CardTitle>

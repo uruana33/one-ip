@@ -1,5 +1,5 @@
 <svg viewBox="0 0 1080 500" width="1080" xmlns="http://www.w3.org/2000/svg">
-  <title>One IP 工作原理</title>
+  <title>工作原理</title>
   <desc>来源注册表和有界调度器连接浏览器观察、终端本地导入、Cloudflare Worker 固定 API 与第三方来源。</desc>
   <style>
     text { font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
@@ -18,7 +18,7 @@
   </defs>
 
   <rect width="1080" height="500" fill="#ffffff"/>
-  <text x="540" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#1e293b">One IP 工作原理</text>
+  <text x="540" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#1e293b">工作原理</text>
   <text x="540" y="48" text-anchor="middle" font-size="11" fill="#64748b">浏览器观察 + 终端导入 + Cloudflare Worker 固定 API</text>
 
   <rect class="boundary" x="20" y="65" width="700" height="410" rx="10"/>

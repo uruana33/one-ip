@@ -2,6 +2,8 @@ import { useEffect, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { AnimatedValue } from "@/components/animated-value";
 import { CompactText } from "@/components/compact-text";
+import { ActionSwapText } from "@/components/motion/action-swap";
+import { DigitSwap } from "@/components/motion/digit-swap";
 import { NumberTicker } from "@/components/number-ticker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -14,26 +16,48 @@ import { maskedIp } from "@/lib/network";
 import { hideIpAtom } from "@/store/privacy";
 import { useAtom, useAtomValue } from "jotai";
 
+const DIGIT_SWAP_MAX = 20;
+
+function IpAddress({ text, hidden }: { text: string; hidden: boolean }) {
+  if (text.length > DIGIT_SWAP_MAX) {
+    return (
+      <AnimatedValue value={text}>
+        <CompactText text={text} middle />
+      </AnimatedValue>
+    );
+  }
+  return (
+    <DigitSwap
+      value={text}
+      direction={hidden ? "down" : "up"}
+      animationKey={hidden ? "hidden" : "shown"}
+    />
+  );
+}
+
 export function PageHeading({
   title,
+  description,
   privacy = false,
+  actions,
 }: {
   title: string;
-  description: string;
+  description?: string;
   privacy?: boolean;
+  actions?: ReactNode;
 }) {
   useEffect(() => {
     document.title = `${title}`;
   }, [title]);
   return (
-    <>
-      <h1 className="sr-only">{title}</h1>
-      {privacy && (
-        <div className="page-privacy">
-          <PrivacyToggle />
-        </div>
-      )}
-    </>
+    <header className="page-header">
+      <div className="page-header-text">
+        <h1 className="cyber-gradient-title">{title}</h1>
+        {description ? <p>{description}</p> : null}
+      </div>
+      {actions}
+      {privacy && <PrivacyToggle />}
+    </header>
   );
 }
 export function PrivacyToggle() {
@@ -53,20 +77,15 @@ export function IpText({ ip, link = true }: { ip?: string; link?: boolean }) {
   const hidden = useAtomValue(hideIpAtom);
   if (!ip) return <span className="muted">{t("未知")}</span>;
   const text = maskedIp(ip, hidden);
+  const glyphs = <IpAddress text={text} hidden={hidden} />;
   return link && !hidden ? (
     <UnderlineHover asChild>
       <Link className="ip-text" to={`/network/ip/${encodeURIComponent(ip)}`}>
-        <AnimatedValue value={text}>
-          <CompactText text={text} middle />
-        </AnimatedValue>
+        {glyphs}
       </Link>
     </UnderlineHover>
   ) : (
-    <span className="ip-text">
-      <AnimatedValue value={text}>
-        <CompactText text={text} middle />
-      </AnimatedValue>
-    </span>
+    <span className="ip-text">{glyphs}</span>
   );
 }
 export function ToolCard({
@@ -79,7 +98,7 @@ export function ToolCard({
   className?: string;
 }) {
   return (
-    <Card className={`tool-card ${className}`}>
+    <Card className={`tool-card cyber-card ${className}`}>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
       </CardHeader>
@@ -141,6 +160,7 @@ export function ActionButton({
   children,
   ...props
 }: React.ComponentProps<typeof Button> & { busy?: boolean }) {
+  const label = typeof children === "string" ? children : null;
   return (
     <Button
       {...props}
@@ -148,7 +168,11 @@ export function ActionButton({
       aria-busy={busy}
       className={`action-button ${props.className ?? ""}`}
     >
-      {busy ? (
+      {label ? (
+        <ActionSwapText value={label} animation="cascade">
+          {label}
+        </ActionSwapText>
+      ) : busy ? (
         <Pending>
           <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap">
             {children}

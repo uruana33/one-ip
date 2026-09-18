@@ -278,6 +278,28 @@ test("removed legacy risk endpoint returns 404", async () => {
     404,
   );
 });
+test("cross readings are served from /api/ip/cross without mixing scores", async () => {
+  await withFetch(async (url, init) => {
+    const href = String(url);
+    if (href.includes("api.123169.xyz/api/info/ip-risk/")) {
+      const headers = new Headers(init?.headers);
+      if (headers.get("x-k"))
+        return Response.json({ ok: true, data: { risk_score: 40 } });
+      return new Response(JSON.stringify({ ok: false }), {
+        headers: { "x-k": "test-key", "x-t": "1000" },
+      });
+    }
+    return new Response("no", { status: 403 });
+  }, async () => {
+    const response = await worker.fetch(request("/api/ip/cross/1.1.1.1"), env);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ip, "1.1.1.1");
+    const purity = body.readings.find((item) => item.id === "ippure-purity");
+    assert.equal(purity?.value, "60");
+    assert.ok(!body.unavailable.includes("ippure"));
+  });
+});
 test("removed DNS endpoints return 404 without querying upstream services", async () => {
   await withFetch(
     async () => {
@@ -552,12 +574,17 @@ test("preferred Ping pins the online major provider ASN while custom mode keeps 
   );
 });
 
-test("icon proxy uses a fixed provider, caches images and strips upstream cookies", async () => {
+test("icon proxy races multiple providers, caches images and strips upstream cookies", async () => {
+  const requested = [];
   await withFetch(
     async (url, options) => {
-      assert.equal(url, "https://icons.duckduckgo.com/ip3/github.com.ico");
-      assert.equal(options.redirect, "manual");
+      requested.push(url);
       assert.equal(options.cf.cacheTtlByStatus["200-299"], 604800);
+      if (url.includes("duckduckgo.com")) throw new Error("network blocked");
+      if (url === "https://github.com/favicon.ico")
+        return new Response("<html>not found</html>", {
+          headers: { "Content-Type": "text/html" },
+        });
       return new Response(new Uint8Array([0, 0, 1, 0]), {
         headers: { "Content-Type": "image/x-icon", "Set-Cookie": "upstream=1" },
       });
@@ -574,6 +601,28 @@ test("icon proxy uses a fixed provider, caches images and strips upstream cookie
       );
       assert.equal(response.headers.get("Set-Cookie"), null);
       assert.equal((await response.arrayBuffer()).byteLength, 4);
+      assert.deepEqual(requested.sort(), [
+        "https://favicon.im/github.com?larger=true",
+        "https://github.com/favicon.ico",
+        "https://icons.duckduckgo.com/ip3/github.com.ico",
+        "https://www.google.com/s2/favicons?domain=github.com&sz=64",
+      ]);
+    },
+  );
+});
+
+test("icon proxy returns 502 only after every provider fails", async () => {
+  await withFetch(
+    async () => {
+      throw new Error("network unreachable");
+    },
+    async () => {
+      const response = await worker.fetch(
+        request("/api/icons/github.com"),
+        env,
+      );
+      assert.equal(response.status, 502);
+      assert.deepEqual(await response.json(), { error: "图标暂不可用" });
     },
   );
 });
@@ -602,7 +651,10 @@ test("icon proxy rejects arbitrary URLs and non-image responses", async () => {
         env,
       );
       assert.equal(response.status, 502);
-      assert.equal(response.headers.get("Cache-Control"), "no-store");
+      assert.equal(
+        response.headers.get("Cache-Control"),
+        "public, max-age=300",
+      );
     },
   );
 });

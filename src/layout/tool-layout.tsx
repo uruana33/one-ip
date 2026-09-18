@@ -1,32 +1,53 @@
+import { Fragment, type ComponentType } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { PageHelpAlert } from "@/components/page-help-alert";
-import { SiteLogo } from "@/components/site-logo";
-import { useAvailableTools } from "@/hooks/use-available-tools";
 import { t } from "@/i18n";
-import { aiPlatforms } from "@/views/ai/platforms";
+import { ArrowRightFromLine } from "lucide-react";
 import { toolGroups } from "./routes";
 
+/** Paths that start a new section in the subnav: a divider is inserted. */
+const subnavBreaks: Record<string, string[]> = {};
+
+const toolIcons: Record<string, ComponentType<{ className?: string }>> = {
+  "/network/egress": ArrowRightFromLine,
+};
+
 export function ToolLayout({ group }: { group: keyof typeof toolGroups }) {
-  const tools = useAvailableTools(group);
+  const tools = toolGroups[group];
+
+  if (group === "ai" || tools.length <= 1)
+    return (
+      <div className="tool-layout tool-layout-flat">
+        <div className="tool-content">
+          <Outlet />
+        </div>
+      </div>
+    );
+
   return (
-    <>
+    <div className="tool-layout">
       <nav className="tool-subnav" aria-label={t("工具导航")}>
-        <NavLink to={`/${group}`} end>
-          {t("概述")}
-        </NavLink>
-        {tools.map((tool) => (
-          <NavLink key={tool.path} to={tool.path}>
-            {group === "ai" && (
-              <SiteLogo
-                website={`https://${aiPlatforms.find((platform) => tool.path === `/ai/${platform.id}`)?.domain}`}
-              />
-            )}
-            {tool.label}
-          </NavLink>
-        ))}
+        {tools.map((tool) => {
+          const Icon = toolIcons[tool.path];
+          const breaks = subnavBreaks[group] ?? [];
+
+          return (
+            <Fragment key={tool.path}>
+              {breaks.includes(tool.path) ? (
+                <span className="tool-subnav-divider" aria-hidden="true" />
+              ) : null}
+              <NavLink to={tool.path} className="flex items-center gap-1.5">
+                {Icon ? (
+                  <Icon className="size-3.5 shrink-0 opacity-70" />
+                ) : null}
+                <span>{tool.label}</span>
+              </NavLink>
+            </Fragment>
+          );
+        })}
       </nav>
-      <PageHelpAlert />
-      <Outlet />
-    </>
+      <div className="tool-content">
+        <Outlet />
+      </div>
+    </div>
   );
 }

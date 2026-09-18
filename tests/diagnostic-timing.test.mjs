@@ -12,7 +12,7 @@ test("diagnostic timing separates queue wait from network time", async () => {
   };
   try {
     const results = await Promise.all(
-      Array.from({ length: 5 }, (_, index) =>
+      Array.from({ length: 16 }, (_, index) =>
         detectSiteResult(
           {
             id: `timing-${index}`,
@@ -67,4 +67,51 @@ test("link-only sources do not start network work or report network duration", a
     [result.queueWaitMs, result.networkMs, result.totalMs],
     [0, 0, 0],
   );
+});
+
+const jsonSource = {
+  id: "retry-source",
+  name: "Retry source",
+  type: "international",
+  method: "ip-json",
+  url: "https://example.com/ip",
+  icon: "",
+};
+
+test("a timeout is retried once without a new user action", async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    if (calls === 1)
+      throw new DOMException(
+        "The operation was aborted due to timeout",
+        "TimeoutError",
+      );
+    return Response.json({ ip: "1.1.1.1" });
+  };
+  try {
+    const result = await detectSiteResult(jsonSource, "retry-run");
+    assert.equal(result.status, "ok");
+    assert.equal(result.ip, "1.1.1.1");
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("fast network failures are not retried", async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    throw new TypeError("Failed to fetch");
+  };
+  try {
+    const result = await detectSiteResult(jsonSource, "cors-run");
+    assert.equal(result.status, "network_error");
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = original;
+  }
 });

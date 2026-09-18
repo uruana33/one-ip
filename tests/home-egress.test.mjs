@@ -15,7 +15,7 @@ const { outputText } = ts.transpileModule(
   },
 );
 function render(primary, split, client = {}, capture = () => {}) {
-  const batches = [[], primary];
+  const batches = [primary];
   const require = (name) => {
     if (name === "react/jsx-runtime") return jsx;
     if (name === "react")
@@ -24,7 +24,6 @@ function render(primary, split, client = {}, capture = () => {}) {
     if (name === "@/hooks/use-mobile") return { useIsMobile: () => false };
     if (name === "@/hooks/use-sort-animation")
       return { useSortAnimation: () => null };
-    if (name === "@/components/connectivity") return { homeTargets: [] };
     if (name === "@/lib/query-keys") return queryKeyModule;
     if (name === "./sites.json") return [{ name: "Example" }];
     if (name === "@tanstack/react-query")
@@ -62,7 +61,10 @@ test("matching domestic and external IPv4 produces one card", () => {
   render([{ data: ipv4 }, { data: ipv4 }, failed], [], {}, (value) => {
     tree = value;
   });
-  assert.equal(tree.props.children[1].props.children[0].length, 1);
+  const visualizer = tree.props.children.find(
+    (child) => child && child.props && Array.isArray(child.props.cardsData),
+  );
+  assert.equal(visualizer.props.cardsData.length, 1);
 });
 test("failed domestic probe never promotes a proxy or routed IPv6 to local egress", () => {
   const result = render([failed, { data: ipv4 }, failed], [{ data: ipv6 }]);
@@ -80,12 +82,13 @@ test("home retest cancels previous runs before resetting only home query familie
   const calls = [];
   const client = {
     cancelQueries: async (filters) => {
+      assert.ok(filters.predicate({ queryKey: ["browser-ip", 4] }));
+      assert.ok(filters.predicate({ queryKey: ["split", "Example"] }));
       assert.ok(
-        filters.predicate({
+        !filters.predicate({
           queryKey: ["connectivity", "https://example.com", 0],
         }),
       );
-      assert.ok(filters.predicate({ queryKey: ["split", "Example"] }));
       assert.ok(!filters.predicate({ queryKey: ["whois", "example.com"] }));
       calls.push("cancel");
     },

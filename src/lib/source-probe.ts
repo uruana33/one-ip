@@ -1,7 +1,7 @@
 import { t } from "@/i18n";
 import type { SourceDefinition } from "./diagnostic-source.ts";
 import { normalizePublicIp } from "./diagnostics.ts";
-import { request, trace } from "./network.ts";
+import { request, SOURCE_PROBE_TIMEOUT_MS, trace } from "./network.ts";
 import type { Geo } from "./types.ts";
 
 /** Executes a normalized source; scheduling and result history belong to the caller. */
@@ -12,7 +12,7 @@ export async function executeSource(
   signal?.throwIfAborted();
   if (source.execution === "link-only")
     throw new Error(t(source.note ?? "未获取到可读取的出口 IP"));
-  const timeout = AbortSignal.timeout(3000);
+  const timeout = AbortSignal.timeout(SOURCE_PROBE_TIMEOUT_MS);
   const options = {
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     cache: "no-store" as const,

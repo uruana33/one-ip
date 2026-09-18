@@ -112,34 +112,117 @@ export function PingResults({
       b.avg != null && Number.isFinite(b.avg) && b.avg >= 0 ? b.avg : -1;
     return right - left;
   });
+  const validRows = rows.filter(
+    (r) => r.avg != null && Number.isFinite(r.avg) && r.avg > 0,
+  );
+  const fastest = validRows.length
+    ? validRows.reduce((min, r) => (r.avg! < min.avg! ? r : min), validRows[0])
+    : null;
+  const slowest = validRows.length
+    ? validRows.reduce((max, r) => (r.avg! > max.avg! ? r : max), validRows[0])
+    : null;
+  const avgLatency = validRows.length
+    ? validRows.reduce((sum, r) => sum + r.avg!, 0) / validRows.length
+    : null;
+
   return (
-    <Card>
-      <CardContent>
-        <DataTable
-          className="ping-table"
-          getRowClassName={(row) =>
-            row.avg == null ||
-            !Number.isFinite(row.avg) ||
-            row.avg < 0 ||
-            row.status === t("失败")
-              ? "ping-row-danger"
-              : row.avg < 100
-                ? "ping-row-fast"
-                : row.avg < 400
-                  ? "ping-row-good"
-                  : "ping-row-slow"
-          }
-          data={rows}
-          columns={columns}
-          getRowId={(row) => row.id}
-          animateChanges={false}
-          animateSorting
-          animateEntries
-          empty={
-            pending ? <Pending>{t("等待远端探针...")}</Pending> : t("暂无结果")
-          }
-        />
-      </CardContent>
-    </Card>
+    <div className="space-y-3">
+      {validRows.length > 0 && (
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <div className="flex flex-col justify-between p-3 rounded-xl cyber-card bg-card/60">
+            <span className="text-[10px] font-mono tracking-wider text-muted-foreground uppercase">
+              PROBES ({validRows.length})
+            </span>
+            <div className="mt-1 flex items-baseline gap-1">
+              <span className="text-lg font-bold font-mono text-primary">
+                {validRows.length}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                / {rows.length}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-between p-3 rounded-xl cyber-card bg-card/60">
+            <span className="text-[10px] font-mono tracking-wider text-muted-foreground uppercase">
+              FASTEST ({t("最小")})
+            </span>
+            <div className="mt-1">
+              <span className="text-lg font-bold font-mono text-emerald-500">
+                {fastest?.avg != null ? `${fastest.avg.toFixed(1)}ms` : "—"}
+              </span>
+              {fastest && (
+                <div className="text-[11px] text-muted-foreground truncate mt-0.5 font-mono">
+                  {fastest.name}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-between p-3 rounded-xl cyber-card bg-card/60">
+            <span className="text-[10px] font-mono tracking-wider text-muted-foreground uppercase">
+              AVERAGE ({t("平均")})
+            </span>
+            <div className="mt-1">
+              <span className="text-lg font-bold font-mono text-sky-400">
+                {avgLatency != null ? `${avgLatency.toFixed(1)}ms` : "—"}
+              </span>
+              <div className="text-[11px] text-muted-foreground mt-0.5 font-mono">
+                WEIGHTED
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-between p-3 rounded-xl cyber-card bg-card/60">
+            <span className="text-[10px] font-mono tracking-wider text-muted-foreground uppercase">
+              SLOWEST ({t("最大")})
+            </span>
+            <div className="mt-1">
+              <span className="text-lg font-bold font-mono text-amber-500">
+                {slowest?.avg != null ? `${slowest.avg.toFixed(1)}ms` : "—"}
+              </span>
+              {slowest && (
+                <div className="text-[11px] text-muted-foreground truncate mt-0.5 font-mono">
+                  {slowest.name}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Card className="cyber-card">
+        <CardContent className="p-0">
+          <DataTable
+            className="ping-table"
+            getRowClassName={(row) =>
+              row.avg == null ||
+              !Number.isFinite(row.avg) ||
+              row.avg < 0 ||
+              row.status === t("失败")
+                ? "ping-row-danger"
+                : row.avg < 100
+                  ? "ping-row-fast"
+                  : row.avg < 400
+                    ? "ping-row-good"
+                    : "ping-row-slow"
+            }
+            data={rows}
+            columns={columns}
+            getRowId={(row) => row.id}
+            animateChanges={false}
+            animateSorting
+            animateEntries
+            empty={
+              pending ? (
+                <Pending>{t("等待远端探针...")}</Pending>
+              ) : (
+                t("暂无结果")
+              )
+            }
+          />
+        </CardContent>
+      </Card>
+    </div>
   );
 }

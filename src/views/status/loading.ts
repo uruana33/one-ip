@@ -13,8 +13,11 @@ export function statusLoadLimit(total: number, batch: number) {
 export function statusLoadBatch(
   services: StatusService[],
   isComplete: (service: StatusService) => boolean,
+  filter = "全部",
 ) {
-  const integrated = services.filter((service) => service.url);
+  const integrated = services.filter(
+    (service) => service.url && (filter === "全部" || service.group === filter),
+  );
   let batch = 0;
   while (statusLoadLimit(integrated.length, batch) < integrated.length) {
     const start = batch * statusBatchSize;
@@ -33,10 +36,11 @@ export function statusLoadIds(
 ) {
   const ids = new Set<string>();
   const integrated = services.filter((service) => service.url);
+  const grouped = integrated.filter((service) => service.group === filter);
   const selected =
     filter === "全部"
       ? integrated.slice(0, statusLoadLimit(integrated.length, batch))
-      : integrated.filter((service) => service.group === filter);
+      : grouped.slice(0, statusLoadLimit(grouped.length, batch));
   for (const service of selected) ids.add(service.id);
   if (detailId && integrated.some((service) => service.id === detailId))
     ids.add(detailId);

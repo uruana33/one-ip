@@ -1,42 +1,37 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { CountryFlag } from "@/components/country-flag";
-import { SiteLogo } from "@/components/site-logo";
 import { IpText, Pending, ActionButton } from "@/components/toolkit";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
-import { UnderlineHover } from "@/components/underline-hover";
 import { t } from "@/i18n";
 import type { DiagnosticResult } from "@/lib/diagnostics";
 import { queryKeys } from "@/lib/query-keys";
 import type { Geo } from "@/lib/types";
+import { EgressFlowBoard } from "@/views/egress/flow-board";
+import {
+  EgressExitDescription,
+  EgressExitSheet,
+  EgressExitTitle,
+  EgressSiteDescription,
+  EgressSiteSheet,
+  EgressSiteTitle,
+} from "@/views/egress/site-sheet";
 import { useQueries } from "@tanstack/react-query";
 import { detectSiteResult, getGeo } from "./api";
-import { ExitGroups } from "./exit-groups";
 import { sourceRegistry, type SourceDefinition } from "./source-registry";
 
 const allSites = sourceRegistry.map((item) => ({
   ...item,
   name: t(item.name),
 }));
+const allSiteIds = allSites.map((site) => site.id);
 const initialSites = allSites
   .filter(
     (site) => site.enabledByDefault && site.execution === "client-request",
   )
   .slice(0, 8);
 const initialSiteIds = new Set(initialSites.map((site) => site.id));
-
-function statusText(result: DiagnosticResult | undefined, note?: string) {
-  if (!result)
-    return t(note ?? "出口检测受阻（接口不支持、跨域限制或连接失败）");
-  if (result.status === "ok") return t("已读取出口");
-  if (result.status === "timeout")
-    return t("检测超时，部分浏览器可能限制了检测接口。");
-  if (result.status === "rate_limited") return t("外部数据源限流，请稍后重试");
-  if (result.status === "cancelled") return t("检测已取消");
-  return t(note ?? "出口检测受阻（接口不支持、跨域限制或连接失败）");
-}
 
 type Row = SourceDefinition & {
   visible: boolean;
@@ -51,12 +46,12 @@ export function SplitResults({ summary = false }: { summary?: boolean }) {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detailIp, setDetailIp] = useState<string | null>(null);
   const runId = `split-${round}`;
-  const [visibleSites, setVisibleSites] = useState<Set<string>>(
-    () => new Set(),
+  const [visibleSites, setVisibleSites] = useState<Set<string>>(() =>
+    summary ? new Set() : new Set(allSiteIds),
   );
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!container.current) return;
+    if (!summary || !container.current) return;
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) {
         setVisibleSites(new Set(initialSiteIds));
@@ -131,6 +126,29 @@ export function SplitResults({ summary = false }: { summary?: boolean }) {
     ).values(),
   ];
   const detail = rows.find((row) => row.id === detailId);
+  const exitRows = detailIp
+    ? rows.filter((row) => row.geo?.ip === detailIp)
+    : [];
+  const exitGeo = exitRows[0]?.geo;
+  const sheet = detail
+    ? {
+        kind: "site" as const,
+        site: detail,
+        siblingCount: detail.geo?.ip
+          ? rows.filter((row) => row.geo?.ip === detail.geo?.ip).length
+          : 0,
+      }
+    : detailIp
+      ? {
+          kind: "exit" as const,
+          ip: detailIp,
+          geo: exitGeo,
+          sites: exitRows,
+        }
+      : null;
+  const heldSheet = useRef(sheet);
+  if (sheet) heldSheet.current = sheet;
+  const view = sheet ?? heldSheet.current;
   const pending = queries.some((q) => q.isFetching);
   const Container = summary ? Card : "div";
   const Content = summary ? CardContent : "div";
@@ -141,7 +159,7 @@ export function SplitResults({ summary = false }: { summary?: boolean }) {
           <div className="row-between">
             <CardTitle>{t("网站分流出口")}</CardTitle>
             {summary && (
-              <Link className="small muted" to="/network/exits">
+              <Link className="small muted" to="/network/egress">
                 {t("查看全部 ›")}
               </Link>
             )}
@@ -150,123 +168,135 @@ export function SplitResults({ summary = false }: { summary?: boolean }) {
       )}
       <Content>
         {!summary && (
-          <div className="mb-3 flex justify-end">
-            <ActionButton
-              busy={pending}
-              onClick={() => {
-                setDetailId(null);
-                setDetailIp(null);
-                setVisibleSites(new Set(sites.map((site) => site.id)));
-                setRound((value) => value + 1);
-              }}
-            >
-              {pending
-                ? t("检测中...")
-                : visibleSites.size < sites.length
-                  ? t("检测全部")
-                  : t("重新检测")}
-            </ActionButton>
-          </div>
+          <EgressFlowBoard
+            rows={rows}
+            total={sites.length}
+            pending={pending}
+            onSelectIp={setDetailIp}
+            onSelectSite={setDetailId}
+            action={
+              <ActionButton
+                busy={pending}
+                onClick={() => {
+                  setDetailId(null);
+                  setDetailIp(null);
+                  setVisibleSites(new Set(allSiteIds));
+                  setRound((value) => value + 1);
+                }}
+              >
+                {pending ? t("检测中...") : t("重新检测")}
+              </ActionButton>
+            }
+          />
         )}
         {summary ? (
-          <div className="grid grid-cols-1 items-start gap-x-4 gap-y-1 sm:grid-cols-2">
-            {exits.map((geo) => (
-              <div
-                key={geo.ip}
-                className="flex min-w-0 items-center gap-2 rounded-md bg-muted/30 px-2 py-1.5 text-xs"
-              >
-                <CountryFlag code={geo.country_code} />
-                <span className="min-w-0 flex-1">
-                  <IpText ip={geo.ip} />
-                </span>
-                <UnderlineHover asChild>
-                  <button
-                    type="button"
-                    className="shrink-0 text-muted-foreground"
-                    onClick={() => {
-                      setDetailId(null);
-                      setDetailIp(geo.ip);
-                    }}
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {exits.map((geo) => {
+                const count = rows.filter(
+                  (row) => row.geo?.ip === geo.ip,
+                ).length;
+                const location = [geo.country, geo.city]
+                  .filter(Boolean)
+                  .join(" · ");
+                return (
+                  <div
+                    key={geo.ip}
+                    className="group relative flex items-center justify-between gap-2.5 rounded-xl border border-border/60 bg-card/60 p-2.5 backdrop-blur-sm transition-[border-color,background-color,box-shadow,transform] duration-200 ease-out hover:border-primary/40 hover:bg-card hover:shadow-sm hover:-translate-y-0.5"
                   >
-                    {rows.filter((row) => row.geo?.ip === geo.ip).length}
-                    {t("个站点")}
-                  </button>
-                </UnderlineHover>
-              </div>
-            ))}
-            <p className="home-note col-span-full pt-1">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <CountryFlag code={geo.country_code} />
+                      <div className="flex flex-col min-w-0 text-left">
+                        <div className="font-mono text-xs font-semibold tracking-tight text-foreground truncate">
+                          <IpText ip={geo.ip} />
+                        </div>
+                        <span className="text-[11px] text-muted-foreground truncate">
+                          {location || geo.isp || "—"}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-medium transition-colors cursor-pointer"
+                      onClick={() => {
+                        setDetailId(null);
+                        setDetailIp(geo.ip);
+                      }}
+                    >
+                      <span>
+                        {count} {t("个站点")}
+                      </span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/40">
               {pending ? (
                 <Pending>{t("正在检测分流出口…")}</Pending>
               ) : (
-                t("已读取 {0}/{1} 个站点的出口{2}", [
-                  rows.filter((row) => row.geo).length,
-                  sites.length,
-                  !exits.length ? t("，暂无可显示结果") : "",
-                ])
+                <span>
+                  {t("已读取 {0}/{1} 个站点的出口{2}", [
+                    rows.filter((row) => row.geo).length,
+                    sites.length,
+                    !exits.length ? t("，暂无可显示结果") : "",
+                  ])}
+                </span>
               )}
-            </p>
+              <Link
+                to="/network/egress"
+                className="text-primary hover:underline inline-flex items-center gap-1 text-[11px]"
+              >
+                {t("查看全部 ›")}
+              </Link>
+            </div>
           </div>
-        ) : (
-          <ExitGroups rows={rows} onSelect={setDetailId} />
-        )}
+        ) : null}
       </Content>
       <ResponsiveDialog
-        open={detailId !== null || detailIp !== null}
+        className="egress-sheet-dialog"
+        open={sheet !== null}
         onOpenChange={(open) => {
           if (!open) {
             setDetailId(null);
             setDetailIp(null);
           }
         }}
-        title={detail?.name ?? t("出口站点")}
+        title={
+          view?.kind === "site" ? (
+            <EgressSiteTitle site={view.site} />
+          ) : view?.kind === "exit" ? (
+            <EgressExitTitle ip={view.ip} geo={view.geo} />
+          ) : (
+            t("出口站点")
+          )
+        }
         description={
-          detail
-            ? t("该站点观察到的出口信息。")
-            : t("使用此出口的站点，点击名称查看详情。")
+          view?.kind === "site" ? (
+            <EgressSiteDescription site={view.site} />
+          ) : view?.kind === "exit" ? (
+            <EgressExitDescription geo={view.geo} count={view.sites.length} />
+          ) : null
         }
       >
-        {detail ? (
-          <div className="space-y-3 text-sm">
-            <p className="break-all text-muted-foreground">
-              {detail.domain ?? detail.url ?? detail.name}
-            </p>
-            <div>
-              {t("出口 IP：")}
-              {detail.geo?.ip ? <IpText ip={detail.geo.ip} /> : t("检测受阻")}
-            </div>
-            <p>
-              {[detail.geo?.country, detail.geo?.city, detail.geo?.isp]
-                .filter(Boolean)
-                .join(" · ") || t("归属信息暂不可用")}
-            </p>
-            <p className="text-muted-foreground">
-              {detail.pending
-                ? t("检测中…")
-                : statusText(detail.diagnostic, detail.note)}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <IpText ip={detailIp ?? undefined} />
-            <div className="flex flex-wrap gap-2">
-              {rows
-                .filter((row) => row.geo?.ip === detailIp)
-                .map((row) => (
-                  <Badge
-                    key={row.id}
-                    variant="secondary"
-                    className="h-auto max-w-full gap-1.5 px-2.5 py-1.5 hover:bg-accent hover:text-accent-foreground [&_.site-icon]:size-3.5"
-                    asChild
-                  >
-                    <button type="button" onClick={() => setDetailId(row.id)}>
-                      <SiteLogo src={row.icon} />
-                      <span className="min-w-0 truncate">{row.name}</span>
-                    </button>
-                  </Badge>
-                ))}
-            </div>
-          </div>
-        )}
+        {view?.kind === "site" ? (
+          <EgressSiteSheet
+            key={view.site.id}
+            site={view.site}
+            siblingCount={view.siblingCount}
+            onSelectExit={(ip) => {
+              setDetailId(null);
+              setDetailIp(ip);
+            }}
+          />
+        ) : view?.kind === "exit" ? (
+          <EgressExitSheet
+            key={view.ip}
+            ip={view.ip}
+            sites={view.sites}
+            onSelectSite={setDetailId}
+          />
+        ) : null}
       </ResponsiveDialog>
     </Container>
   );

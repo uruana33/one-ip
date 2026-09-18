@@ -63,6 +63,43 @@
 - 浏览器确认分享弹窗点击前没有加载对应 chunk，点击后出现弹窗；状态请求按批次推进，接口失败时保持未知状态。
 - 本地完整入口使用 `pnpm worker:dev`，默认 `http://127.0.0.1:8787`。单独运行 Vite/preview 时，`/api` 仍依赖本地 Worker。
 
+## 样式架构（阶段 1：CSS 收敛）
+
+- `src/app.css` 只保留按级联顺序排列的 `@import` 列表；实际规则位于 `src/styles/` 的 `theme.css`、`core.css`、`dashboard.css`、`pages.css`、`deck.css`。
+- 级联顺序即覆盖顺序：修改样式时在对应层文件末尾追加，或新增更靠后的层；不要在前面的层里给同名选择器补写属性。
+- 已删除 93 条被后续同选择器规则完全覆盖的死声明；用构建产物做了逐条件（media/supports 组合 × 属性）的级联等价验证，渲染不变。
+- 暂缓项：`639px`/`640px`/`48.001rem`/`36.0625rem` 等擦边断点尚未统一到 rem 断点体系（px 与 rem 在 `data-font-size` 下语义不同），留待逐页迁移时一并处理。
+
+## 布局骨架（阶段 2：侧栏 + 页头 + Bento）
+
+- `src/styles/shell.css` 是最终层：可见页头、宽屏左侧 sticky 工具侧栏、首页 Bento 配对、两种卡片变体的规范定义。
+- 桌面容器宽度 1240 → 1360px（`--shell-max`）；≥64rem 时 `tool-layout` 为 232px 侧栏 + 内容双栏，48–64rem 时二级导航改为单行横向滚动，移动端保持底部玻璃 Dock 不变。
+- `PageHeading`（`src/components/toolkit.tsx`）渲染可见页头（渐变标题 + 可选描述 + actions/隐私开关插槽），不再只输出 sr-only 标题。
+- 卡片收敛为两种变体：surface（`.cyber-card`/`.tool-card`）与 feature（`.cyber-cockpit-card`），规范定义集中在 shell.css；`hud-frame` 角标保留给 feature 卡。
+- 首页删除约 180 行恒为 `display:none` 的 `home-primary-card` 死标记（可见面板由 `SplitTunnelVisualizer` 渲染）；`PlatformSummary` + `BrowserSummary` 组成 `.home-bento-row`，Bento 单元格内 PlatformSummary 内部改为单列避免名称截断。
+- `tests/home-egress.test.mjs` 的"单卡片"断言从旧树形改为校验传给 `SplitTunnelVisualizer` 的 `cardsData`。
+
+## 逐页迁移与死样式清理（阶段 3）
+
+- 用 postcss 脚本按"选择器中任一 class 在 src 非 CSS 文件（含模板拼接前缀如 `dot-${}`）中无引用即删"清理，Leaflet 运行时类（`leaflet-*`）白名单保留；共删除 151 条死规则、修剪 11 个多选择器列表中失效的部分。
+- 已清除的无挂载点样式包括：`home-primary-card`/`home-address-row`/`home-ip-overview`/`home-card-*`（随阶段 2 死标记删除）、`page-heading`/`page-privacy`/`eyebrow`（PageHeading 重构）、`module-overview__*`、`split-table`/`node-picker`/`gauge-*`/`ip-result-grid` 等历史残留。
+- 擦边断点 `639px`/`640px` 统一为 `40rem`；`48.001rem`/`36.0625rem` 是配套的 min-width 互补断点，保留。
+- WHOIS 搜索卡从 surface+hud 混用改为 feature 变体（`cyber-cockpit-card`），与 Ping/IP 搜索卡一致。
+- 样式总量：3433 行单文件 → 6 层共 2818 行 + 13 行入口。
+
+## 动效编排（阶段 4）
+
+- `src/styles/motion.css` 为最终层：路由级入场（`main > *` 在 keyed 路由边界重挂载时重放 `deck-enter`）、模块概述网格 stagger（45ms 步进至第 6 项）、全站卡片 hover 统一为 `-2px / 200ms / --ease-enter`、侧栏链接 hover `translateX(2px)` 仅在 ≥64rem 纵向布局生效。
+- 所有动效包裹在 `prefers-reduced-motion: no-preference` 中，并叠加 index.css 的全局 reduce 规则兜底；已用 Playwright 验证 reduce 模式下 animation-duration 为 0.01ms。
+
+## 图标代理（/api/icons）
+
+- 多源竞速：DuckDuckGo（2.5s）→ 站点自身 favicon（3s）→ Google s2（3.5s）→ favicon.im（7s），第一个返回 2xx 且 Content-Type 为图片的胜出；接受 `image/svg+xml`。
+- 必须带浏览器 User-Agent：favicon.im 和部分站点按 UA 拦截 Cloudflare Workers 的默认抓取（403）。
+- 全部失败返回 502 并负缓存 5 分钟（`public, max-age=300`），避免无图标域名反复支付超时；成功响应边缘缓存 7 天、浏览器 1 天。Google s2 对未知域名返回 404+图片的默认地球图标，按失败处理，由前端 AvatarFallback 兜底。
+- 状态接口（/api/status/*）502 是本地网络对部分上游（status.zoom.us、status.deepseek.com）不可达的如实失败，前端按设计显示"未知"；生产边缘不受影响。
+- 搬瓦工状态页改版为 "N active" 汇总 + issue 文章列表后，旧解析器无法识别新标记而恒报 502；`parseBandwagon` 已支持解析活动事件（按事件徽章判定 maintenance/minor，提取标题、链接和 Vancouver 时区更新时间），无事件文案（"No incidents in the last N days"）才报告零事件。
+
 ## 后续工作
 
 1. 查询策略仍需进一步统一。部分 Geo 调用分别采用浏览器直连和 Worker 查询，统一 key 不能替代统一的数据获取策略。

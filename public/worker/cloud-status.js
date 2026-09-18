@@ -87,6 +87,31 @@ export function parseAws(data) {
   );
 }
 
+const BWH_MONTHS = {
+  Jan: "01",
+  Feb: "02",
+  Mar: "03",
+  Apr: "04",
+  May: "05",
+  Jun: "06",
+  Jul: "07",
+  Aug: "08",
+  Sep: "09",
+  Oct: "10",
+  Nov: "11",
+  Dec: "12",
+};
+function bandwagonTime(value) {
+  const m = value?.match(
+    /(\w{3})\w* (\d+), (\d+) (\d+):(\d+) (AM|PM) (PDT|PST)/,
+  );
+  if (!m || !BWH_MONTHS[m[1]]) return undefined;
+  const hours = (Number(m[4]) % 12) + (m[6] === "PM" ? 12 : 0);
+  const iso = `${m[3]}-${BWH_MONTHS[m[1]]}-${String(m[2]).padStart(2, "0")}T${String(hours).padStart(2, "0")}:${m[5]}:00${m[7] === "PDT" ? "-07:00" : "-08:00"}`;
+  const date = new Date(iso);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
+}
+
 export function parseBandwagon(html) {
   if (!html.includes("<title>BandwagonHost Status</title>"))
     throw unavailable();
@@ -103,6 +128,49 @@ export function parseBandwagon(html) {
         ? []
         : undefined,
     );
+  // Ongoing events: the page summarizes as "N active" and lists issue
+  // articles whose badges carry the per-incident kind.
+  if (/^\d+\s+active/i.test(label) || /active incident/i.test(description)) {
+    const issues = [
+      ...html.matchAll(/<article class="issue">([\s\S]*?)<\/article>/g),
+    ]
+      .map(([, body]) => {
+        const name = body.match(/<h3><a[^>]*>([^<]+)<\/a><\/h3>/)?.[1]?.trim();
+        const badge = body.match(
+          /<span class="status status-([\w-]+)">([^<]+)<\/span>/,
+        );
+        const href = body.match(/<h3><a href="([^"]+)"/)?.[1];
+        const updated = body
+          .match(/<p class="meta">Updated ([^<]+)<\/p>/)?.[1]
+          ?.trim();
+        if (!name) return undefined;
+        return {
+          id: href ?? name,
+          name,
+          status: badge?.[2]?.trim() || label,
+          kind: badge?.[1] ?? "",
+          updated_at: bandwagonTime(updated),
+          shortlink: href
+            ? new URL(href, "https://bwhstatus.com/").href
+            : "https://bwhstatus.com/",
+        };
+      })
+      .filter(Boolean);
+    const outage = issues.some((issue) =>
+      /outage|disruption|down/i.test(issue.kind),
+    );
+    const maintenance = issues.some((issue) => /maintenance/i.test(issue.kind));
+    const indicator = outage
+      ? "minor"
+      : maintenance || issues.length
+        ? "maintenance"
+        : "minor";
+    return summary(
+      indicator,
+      description,
+      issues.map(({ kind, ...incident }) => incident),
+    );
+  }
   if (/maintenance/i.test(label)) return summary("maintenance", description);
   if (/outage|disruption|degraded|incident/i.test(label))
     return summary("minor", description);

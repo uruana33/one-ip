@@ -3,16 +3,20 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { BuildInfo } from "@/components/build-info";
 import { LanguageSelect } from "@/components/language-select";
 import { AppUpdateChecker } from "@/components/providers/app-update-checker";
-import { ShareSite } from "@/components/share-site";
 import { ThemeToggleButton } from "@/components/theme/theme-toggle-button";
 import { Pending } from "@/components/toolkit";
 import { AnimatedSegmentedTabs } from "@/components/ui/animated-segmented-tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { UnderlineHover } from "@/components/underline-hover";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTheme } from "@/hooks/use-theme";
 import { t } from "@/i18n";
-import { Search, Globe, Cable, Activity, Sparkles } from "lucide-react";
+import {
+  Home,
+  ArrowRightFromLine,
+  Activity,
+  Sparkles,
+  Search,
+} from "lucide-react";
 import { Tabs } from "radix-ui";
 import { Toaster } from "sonner";
 import { RouteErrorBoundary } from "./route-error-boundary";
@@ -21,11 +25,11 @@ import { activeNavigationRoute, navigationRoutes } from "./routes";
 const MobileNavGlass = lazy(() => import("@/components/mobile-nav-glass"));
 
 const menuIcons = {
-  "/": Search,
-  "/browser/": Globe,
-  "/network/": Cable,
+  "/": Home,
+  "/network/ip": Search,
   "/ai/": Sparkles,
   "/status/": Activity,
+  "/network/egress": ArrowRightFromLine,
 };
 
 const options = navigationRoutes.map((route) => {
@@ -80,17 +84,9 @@ export function AppLayout() {
     <>
       <div className="app-container">
         <header className="mobile-site-header">
-          <Link
-            to="/"
-            className="flex items-center gap-2 text-sm font-semibold"
-            aria-label={t("IP 网络工具概览")}
-          >
-            <img src="/icon.svg" width="24" height="24" alt="" />
-          </Link>
-          <div className="flex items-center gap-1">
-            <ShareSite />
+          <div className="flex items-center gap-1 ml-auto">
             <LanguageSelect />
-            <ThemeToggleButton className="size-8 rounded-full text-muted-foreground" />
+            <ThemeToggleButton className="size-8 rounded-full text-muted-foreground hover:bg-accent/50" />
           </div>
         </header>
         <AnimatedSegmentedTabs
@@ -102,9 +98,9 @@ export function AppLayout() {
           }}
           activationMode="manual"
           className="min-w-0"
-          listClassName="h-9 w-max justify-start gap-0.5 bg-transparent p-0"
-          highlightClassName="rounded-lg bg-primary/10 shadow-none ring-0"
-          triggerClassName="h-9 flex-none rounded-lg border-0 px-2 text-[13px] text-muted-foreground hover:bg-accent/50 data-[state=active]:font-semibold data-[state=active]:text-primary"
+          listClassName="h-9 w-max justify-start gap-1 bg-transparent p-0"
+          highlightClassName="rounded-full bg-primary/15 shadow-sm ring-1 ring-primary/30 backdrop-blur-sm"
+          triggerClassName="h-8 flex-none rounded-full border-0 px-3.5 text-[13px] text-muted-foreground hover:text-foreground hover:bg-accent/40 data-[state=active]:font-bold data-[state=active]:text-primary transition-[color,background-color,transform] duration-150 ease-out"
           renderList={(list) => (
             <nav ref={navRef} className="app-nav" aria-label={t("主导航")}>
               {mobile && (
@@ -112,21 +108,13 @@ export function AppLayout() {
                   <MobileNavGlass light={resolvedTheme === "light"} />
                 </Suspense>
               )}
-              <Link
-                to="/"
-                aria-label={t("IP 网络工具概览")}
-                className="site-home-link flex size-9 shrink-0 items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-ring"
-              >
-                <img src="/icon.svg" alt="" width="32" height="32" />
-              </Link>
               <ScrollArea className="nav-tabs-scroll">
                 {list}
                 <ScrollBar orientation="horizontal" />
               </ScrollArea>
-              <div className="desktop-preferences flex items-center gap-1">
-                <ShareSite />
+              <div className="desktop-preferences flex items-center gap-1.5 pl-2 border-l border-border/40">
                 <LanguageSelect />
-                <ThemeToggleButton className="size-9 shrink-0 rounded-lg text-muted-foreground" />
+                <ThemeToggleButton className="size-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50" />
               </div>
             </nav>
           )}
@@ -148,43 +136,19 @@ export function AppLayout() {
           </Tabs.Content>
         </AnimatedSegmentedTabs>
         <footer className="app-footer">
-          © {new Date().getFullYear()} IP ·{" "}
-          <UnderlineHover asChild>
-            <a
-              href="https://huzhihui.com/blog/one-ip-guide"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {t("使用文档")}
-            </a>
-          </UnderlineHover>{" "}
-          ·{" "}
-          <UnderlineHover asChild>
-            <Link to="/docs/api">API</Link>
-          </UnderlineHover>{" "}
-          ·{" "}
-          <UnderlineHover asChild>
-            <Link to="/terms">{t("使用条款")}</Link>
-          </UnderlineHover>{" "}
-          ·{" "}
-          <UnderlineHover asChild>
-            <Link to="/privacy">{t("隐私政策")}</Link>
-          </UnderlineHover>{" "}
-          ·{" "}
-          <UnderlineHover asChild>
-            <a
-              href="https://github.com/zhihui-hu/one-ip"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 align-middle"
-            >
-              GitHub
-            </a>
-          </UnderlineHover>{" "}
-          ·{" "}
-          <UnderlineHover asChild>
-            <a href="mailto:ip@huzhihui.com">{t("联系作者")}</a>
-          </UnderlineHover>
+          <p className="app-footer-brand">
+            <span className="app-footer-copy">
+              © {new Date().getFullYear()}
+            </span>
+          </p>
+          <nav className="app-footer-nav" aria-label={t("站点链接")}>
+            <Link className="app-footer-link" to="/terms">
+              {t("使用条款")}
+            </Link>
+            <Link className="app-footer-link" to="/privacy">
+              {t("隐私政策")}
+            </Link>
+          </nav>
         </footer>
       </div>
       <aside aria-label={t("站点通知")} className="update-notices">

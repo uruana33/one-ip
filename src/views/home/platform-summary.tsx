@@ -87,23 +87,20 @@ export function PlatformSummary() {
     orderedPlatforms.map(({ platform }) => platform.id).join("|"),
   );
   return (
-    <div ref={ref} className="grid grid-cols-1 gap-3 mb-3 md:grid-cols-2">
-      <Card>
+    <div ref={ref} className="grid grid-cols-1 gap-3.5 mb-3 md:grid-cols-2">
+      <Card className="cyber-card">
         <CardHeader>
           <CardTitle>{t("AI 访问概览")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div
-            ref={sortRef}
-            className="grid grid-cols-2 gap-x-3 md:grid-cols-1 lg:grid-cols-2"
-          >
+          <div ref={sortRef} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {orderedPlatforms.map(({ platform, query }) => {
               const latency = query.data?.median;
               return (
                 <div
                   key={platform.id}
                   data-sort-id={platform.id}
-                  className="flex min-w-0 items-center justify-between gap-2 py-2 text-xs"
+                  className="group flex min-w-0 items-center justify-between gap-2 p-2 rounded-xl bg-muted/40 hover:bg-muted/80 border border-border/50 hover:border-primary/40 transition-[border-color,background-color,transform] duration-200 ease-out hover:-translate-y-0.5 text-xs"
                 >
                   <UnderlineHover asChild>
                     <Link
@@ -111,12 +108,17 @@ export function PlatformSummary() {
                       className="flex min-w-0 items-center gap-2 text-foreground"
                       style={{ display: "flex" }}
                     >
-                      <SiteLogo website={`https://${platform.domain}`} />
-                      <span className="truncate">{platform.name}</span>
+                      <SiteLogo
+                        website={`https://${platform.domain}`}
+                        className="size-4 shrink-0 rounded-sm"
+                      />
+                      <span className="truncate font-medium">
+                        {platform.name}
+                      </span>
                     </Link>
                   </UnderlineHover>
                   <span
-                    className="home-metric shrink-0"
+                    className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md border border-current/20 shrink-0"
                     title={query.data?.description}
                     style={{
                       color: query.isPending
@@ -126,8 +128,17 @@ export function PlatformSummary() {
                           : latency < 100
                             ? "var(--success)"
                             : latency < 400
-                              ? "var(--good)"
+                              ? "#0284c7"
                               : "var(--warning)",
+                      backgroundColor: query.isPending
+                        ? "transparent"
+                        : latency == null || latency < 0
+                          ? "color-mix(in srgb, var(--danger) 10%, transparent)"
+                          : latency < 100
+                            ? "color-mix(in srgb, var(--success) 10%, transparent)"
+                            : latency < 400
+                              ? "color-mix(in srgb, #0284c7 10%, transparent)"
+                              : "color-mix(in srgb, var(--warning) 10%, transparent)",
                     }}
                   >
                     {query.isPending ? (
@@ -146,26 +157,29 @@ export function PlatformSummary() {
               );
             })}
           </div>
-          <p className="home-note mt-3">
+          <p className="home-note mt-3 text-[11px] text-muted-foreground">
             {t(
               "显示本次探测资源的 HTTP 响应耗时；未连通表示本次探测失败。点击平台可查看详情并打开官网。",
             )}
           </p>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="cyber-card">
         <CardHeader>
           <div className="row-between">
             <CardTitle>{t("服务状态")}</CardTitle>
             <UnderlineHover asChild>
-              <Link to="/status" className="small muted">
+              <Link
+                to="/status"
+                className="small muted hover:text-primary transition-colors"
+              >
                 {t("全部服务 ›")}
               </Link>
             </UnderlineHover>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-x-3 md:grid-cols-1 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {featured
               .map((service, index) => ({ service, query: statuses[index] }))
               .sort(
@@ -175,10 +189,11 @@ export function PlatformSummary() {
               )
               .map(({ service, query }) => {
                 const indicator = query.data?.status?.indicator;
+                const isGood = indicator === "none";
                 return (
                   <div
                     key={service.id}
-                    className="flex min-w-0 items-center justify-between gap-2 py-2 text-xs"
+                    className="group flex min-w-0 items-center justify-between gap-2 p-2 rounded-xl bg-muted/40 hover:bg-muted/80 border border-border/50 hover:border-primary/40 transition-[border-color,background-color,transform] duration-200 ease-out hover:-translate-y-0.5 text-xs"
                   >
                     <UnderlineHover asChild>
                       <Link
@@ -186,22 +201,36 @@ export function PlatformSummary() {
                         className="flex min-w-0 items-center gap-2 text-foreground"
                         style={{ display: "flex" }}
                       >
-                        <SiteLogo src={service.icon} website={service.page} />
-                        <span className="truncate">
+                        <SiteLogo
+                          src={service.icon}
+                          website={service.page}
+                          className="size-4 shrink-0 rounded-sm"
+                        />
+                        <span className="truncate font-medium">
                           {service.name.replace(" (Anthropic)", "")}
                         </span>
                       </Link>
                     </UnderlineHover>
                     <span
-                      className="home-metric shrink-0"
+                      className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md border border-current/20 shrink-0"
                       style={{
                         color: !indicator
                           ? "var(--muted-foreground)"
-                          : indicator === "none"
+                          : isGood
                             ? "var(--success)"
                             : "var(--danger)",
+                        backgroundColor: !indicator
+                          ? "transparent"
+                          : isGood
+                            ? "color-mix(in srgb, var(--success) 10%, transparent)"
+                            : "color-mix(in srgb, var(--danger) 10%, transparent)",
                       }}
                     >
+                      {indicator && (
+                        <span
+                          className={`size-1.5 rounded-full ${isGood ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" : "bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.8)] animate-pulse"}`}
+                        />
+                      )}
                       {query.isPending ? (
                         <Pending>{t("查询中")}</Pending>
                       ) : (
@@ -212,7 +241,7 @@ export function PlatformSummary() {
                 );
               })}
           </div>
-          <p className="home-note mt-3">
+          <p className="home-note mt-3 text-[11px] text-muted-foreground">
             {t("来自官方状态源；点击服务查看组件与事件。")}
           </p>
         </CardContent>

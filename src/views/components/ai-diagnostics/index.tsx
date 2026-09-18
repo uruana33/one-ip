@@ -20,6 +20,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { AiNetworkCheck } from "@/views/ai/network-check";
 import { AiPlatformLinks } from "@/views/ai/platform-links";
 import { aiPlatforms } from "@/views/ai/platforms";
+import { AI_DETAIL_SAMPLE_COUNT } from "@/views/ai/probe";
 import { claudeApi } from "@/views/claude/api";
 import { claudeHistoryAtom } from "@/views/claude/store";
 import { gptApi } from "@/views/gpt/api";
@@ -148,9 +149,10 @@ export default function AiDiagnostics({ kind }: { kind: "claude" | "gpt" }) {
         <AiNetworkCheck
           domains={
             kind === "claude"
-              ? ["claude.ai", "anthropic.com"]
+              ? ["claude.ai", "api.anthropic.com"]
               : ["chatgpt.com", "api.openai.com"]
           }
+          sampleCount={AI_DETAIL_SAMPLE_COUNT}
         >
           <p className="small muted mt-3">
             {t("浏览器 HTTP 探测，不代表账号可用或模型权限。")}

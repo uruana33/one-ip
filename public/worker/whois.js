@@ -84,3 +84,35 @@ export function registrationServer(ip, services) {
     .sort((a, b) => b.length - a.length);
   return matches[0]?.urls.find((url) => url.startsWith("https://"));
 }
+
+/**
+ * Covering-prefix registration from RDAP. Ignores last-changed, which fires on
+ * contact edits. This is the registry object date, not a subscriber lease.
+ */
+export function prefixFromRdap(data) {
+  if (!data || typeof data !== "object") return null;
+  const events = Array.isArray(data.events) ? data.events : [];
+  const registration = events.find((event) => {
+    const action = String(event?.eventAction ?? "").toLowerCase();
+    return action === "registration" || action === "registered";
+  });
+  const stamp = Date.parse(registration?.eventDate ?? "");
+  if (!Number.isFinite(stamp)) return null;
+  const cidrs = Array.isArray(data.cidr0_cidrs) ? data.cidr0_cidrs : [];
+  const first = cidrs.find(
+    (row) =>
+      (row?.v4prefix || row?.v6prefix) && Number.isFinite(Number(row?.length)),
+  );
+  const cidr = first
+    ? `${first.v4prefix || first.v6prefix}/${Number(first.length)}`
+    : undefined;
+  const text = (value) =>
+    typeof value === "string" && value.trim() ? value.trim() : undefined;
+  return {
+    registeredAt: new Date(stamp).toISOString(),
+    start: text(data.startAddress),
+    end: text(data.endAddress),
+    handle: text(data.handle),
+    cidr,
+  };
+}

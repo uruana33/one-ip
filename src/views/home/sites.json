@@ -1,15 +1,5 @@
 [
   {
-    "id": "legacy-703995bb",
-    "name": "Telegram",
-    "type": "international",
-    "method": "unsupported",
-    "domain": "web.telegram.org",
-    "icon": "https://icons.duckduckgo.com/ip3/telegram.org.ico",
-    "extra": ["social"],
-    "note": "暂未接入可读取 Telegram 出口 IP 的接口；网页连通性请使用网站连通检测。"
-  },
-  {
     "id": "legacy-02289ad2",
     "name": "IP.cn",
     "type": "domestic",
@@ -84,15 +74,6 @@
     "extra": ["social"]
   },
   {
-    "id": "legacy-90e9ac66",
-    "name": "anthropic.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "anthropic.com",
-    "icon": "https://icons.duckduckgo.com/ip3/anthropic.com.ico",
-    "extra": ["ai"]
-  },
-  {
     "id": "legacy-ec0d74c9",
     "name": "claude.ai",
     "type": "international",
@@ -111,39 +92,12 @@
     "extra": ["ai"]
   },
   {
-    "id": "legacy-7c10c9b0",
-    "name": "openai.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "openai.com",
-    "icon": "https://icons.duckduckgo.com/ip3/openai.com.ico",
-    "extra": ["ai"]
-  },
-  {
-    "id": "legacy-56aeb757",
-    "name": "sora.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "sora.com",
-    "icon": "https://icons.duckduckgo.com/ip3/sora.com.ico",
-    "extra": ["ai"]
-  },
-  {
     "id": "legacy-be6bec5f",
     "name": "grok.com",
     "type": "international",
     "method": "cftrace",
     "domain": "grok.com",
     "icon": "https://icons.duckduckgo.com/ip3/grok.com.ico",
-    "extra": ["ai"]
-  },
-  {
-    "id": "legacy-2a161824",
-    "name": "pixpix.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "pixpix.com",
-    "icon": "https://icons.duckduckgo.com/ip3/pixpix.com.ico",
     "extra": ["ai"]
   },
   {
@@ -192,15 +146,6 @@
     "extra": ["crypto"]
   },
   {
-    "id": "legacy-6867a899",
-    "name": "crypto.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "crypto.com",
-    "icon": "https://icons.duckduckgo.com/ip3/crypto.com.ico",
-    "extra": ["crypto"]
-  },
-  {
     "id": "legacy-d9b7a116",
     "name": "zoom.us",
     "type": "international",
@@ -246,24 +191,6 @@
     "extra": ["tools", "ecommerce"]
   },
   {
-    "id": "legacy-a32bdf36",
-    "name": "godaddy.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "godaddy.com",
-    "icon": "https://icons.duckduckgo.com/ip3/godaddy.com.ico",
-    "extra": ["tools"]
-  },
-  {
-    "id": "legacy-da2104b8",
-    "name": "producthunt.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "producthunt.com",
-    "icon": "https://icons.duckduckgo.com/ip3/producthunt.com.ico",
-    "extra": ["tools"]
-  },
-  {
     "id": "legacy-fac5194e",
     "name": "cloudflare.com",
     "type": "international",
@@ -288,15 +215,6 @@
     "method": "cftrace",
     "domain": "registry.npmjs.org",
     "icon": "https://icons.duckduckgo.com/ip3/npmjs.com.ico",
-    "extra": ["static"]
-  },
-  {
-    "id": "legacy-58a20182",
-    "name": "kali.download",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "kali.download",
-    "icon": "https://icons.duckduckgo.com/ip3/kali.download.ico",
     "extra": ["static"]
   },
   {
@@ -336,93 +254,12 @@
     "extra": ["media"]
   },
   {
-    "id": "legacy-a53a6331",
-    "name": "kraken.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "www.kraken.com",
-    "icon": "https://icons.duckduckgo.com/ip3/www.kraken.com.ico",
-    "extra": ["crypto"]
-  },
-  {
-    "id": "legacy-e88bdfa5",
-    "name": "bybit.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "www.bybit.com",
-    "icon": "https://icons.duckduckgo.com/ip3/www.bybit.com.ico",
-    "extra": ["crypto"]
-  },
-  {
-    "id": "legacy-60b0ceb0",
-    "name": "bitget.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "www.bitget.com",
-    "icon": "https://icons.duckduckgo.com/ip3/www.bitget.com.ico",
-    "extra": ["crypto"]
-  },
-  {
-    "id": "legacy-90e3b2c8",
-    "name": "kucoin.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "www.kucoin.com",
-    "icon": "https://icons.duckduckgo.com/ip3/www.kucoin.com.ico",
-    "extra": ["crypto"]
-  },
-  {
     "id": "legacy-f319bef7",
     "name": "amazon.com",
     "type": "international",
     "method": "cftrace",
     "domain": "www.amazon.com",
     "icon": "https://icons.duckduckgo.com/ip3/www.amazon.com.ico",
-    "extra": ["ecommerce"]
-  },
-  {
-    "id": "legacy-46873888",
-    "name": "ebay.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "www.ebay.com",
-    "icon": "https://icons.duckduckgo.com/ip3/www.ebay.com.ico",
-    "extra": ["ecommerce"]
-  },
-  {
-    "id": "legacy-ab5571bf",
-    "name": "aliexpress.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "www.aliexpress.com",
-    "icon": "https://icons.duckduckgo.com/ip3/www.aliexpress.com.ico",
-    "extra": ["ecommerce"]
-  },
-  {
-    "id": "legacy-88a18d04",
-    "name": "temu.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "www.temu.com",
-    "icon": "https://icons.duckduckgo.com/ip3/www.temu.com.ico",
-    "extra": ["ecommerce"]
-  },
-  {
-    "id": "legacy-a4ad32da",
-    "name": "shein.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "www.shein.com",
-    "icon": "https://icons.duckduckgo.com/ip3/www.shein.com.ico",
-    "extra": ["ecommerce"]
-  },
-  {
-    "id": "legacy-ce40b690",
-    "name": "etsy.com",
-    "type": "international",
-    "method": "cftrace",
-    "domain": "www.etsy.com",
-    "icon": "https://icons.duckduckgo.com/ip3/www.etsy.com.ico",
     "extra": ["ecommerce"]
   },
   {
@@ -435,12 +272,55 @@
     "extra": ["ecommerce"]
   },
   {
-    "id": "legacy-0a63fc64",
-    "name": "lazada.com",
+    "id": "legacy-d61a7809",
+    "name": "www.okta.com",
     "type": "international",
     "method": "cftrace",
-    "domain": "www.lazada.com",
-    "icon": "https://icons.duckduckgo.com/ip3/www.lazada.com.ico",
-    "extra": ["ecommerce"]
+    "domain": "www.okta.com",
+    "icon": "https://icons.duckduckgo.com/ip3/okta.com.ico",
+    "extra": ["risk"]
+  },
+  {
+    "id": "legacy-49959dc1",
+    "name": "revolut.com",
+    "type": "international",
+    "method": "cftrace",
+    "domain": "revolut.com",
+    "icon": "https://icons.duckduckgo.com/ip3/revolut.com.ico",
+    "extra": ["risk"]
+  },
+  {
+    "id": "legacy-b84bc9c6",
+    "name": "hcaptcha.com",
+    "type": "international",
+    "method": "cftrace",
+    "domain": "hcaptcha.com",
+    "icon": "https://icons.duckduckgo.com/ip3/hcaptcha.com.ico",
+    "extra": ["risk"]
+  },
+  {
+    "id": "legacy-1fee3313",
+    "name": "challenges.cloudflare.com",
+    "type": "international",
+    "method": "cftrace",
+    "domain": "challenges.cloudflare.com",
+    "icon": "https://icons.duckduckgo.com/ip3/cloudflare.com.ico",
+    "extra": ["risk"]
+  },
+  {
+    "id": "legacy-92cb4290",
+    "name": "ipify",
+    "type": "international",
+    "method": "ip-json",
+    "url": "https://api64.ipify.org/?format=json",
+    "icon": "https://icons.duckduckgo.com/ip3/ipify.org.ico"
+  },
+  {
+    "id": "legacy-255ee8bd",
+    "name": "ident.me",
+    "type": "international",
+    "method": "ip-json",
+    "url": "https://ident.me/json",
+    "icon": "https://icons.duckduckgo.com/ip3/ident.me.ico"
   }
 ]

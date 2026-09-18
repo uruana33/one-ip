@@ -1,69 +1,18 @@
 import { useState } from "react";
-import { DataTable } from "@/components/data-table";
-import { OverflowDetailText } from "@/components/overflow-detail-text";
-import { SiteLogo } from "@/components/site-logo";
-import { PageHeading, Pending, ActionButton } from "@/components/toolkit";
-import { Card, CardContent } from "@/components/ui/card";
+import { ActionButton } from "@/components/toolkit";
 import { t } from "@/i18n";
 import { request } from "@/lib/network";
-import { useQueries } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
-import { providers, providerWebsite } from "./providers";
+import { queryKeys } from "@/lib/query-keys";
+import { CdnStage } from "@/views/egress/cdn-stage";
+import { getBrowserIp, getDomesticIp, getGeo } from "@/views/home/api";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { providers } from "./providers";
 
-type Row = {
-  name: string;
-  node?: string;
-  cache?: string;
-  loading: boolean;
-  error?: string;
-};
-const columns: ColumnDef<Row>[] = [
-  {
-    accessorKey: "name",
-    header: t("厂商"),
-    cell: ({ row }) => (
-      <span className="site-cell">
-        <SiteLogo website={providerWebsite(row.original.name)} />
-        <OverflowDetailText text={row.original.name} title={t("CDN 厂商")} />
-      </span>
-    ),
-  },
-  {
-    id: "node",
-    header: t("节点 / 响应标识"),
-    cell: ({ row }) =>
-      row.original.loading ? (
-        <Pending>{t("检测中...")}</Pending>
-      ) : (
-        <OverflowDetailText text={row.original.node ?? t("未知")} />
-      ),
-  },
-  {
-    accessorKey: "cache",
-    header: t("缓存"),
-    cell: ({ row }) => (
-      <OverflowDetailText
-        text={row.original.cache ?? "—"}
-        title={t("缓存状态")}
-      />
-    ),
-  },
-  {
-    id: "status",
-    header: t("状态"),
-    cell: ({ row }) =>
-      row.original.loading ? (
-        <Pending>{t("检测中...")}</Pending>
-      ) : (
-        <OverflowDetailText text={row.original.error ?? t("已完成")} />
-      ),
-  },
-];
 export default function CdnPage() {
   const [round, setRound] = useState(0);
   const queries = useQueries({
     queries: providers.map((provider) => ({
-      queryKey: ["cdn-node-v2", provider.name, round],
+      queryKey: ["cdn-node-v3", provider.id, round],
       retry: false,
       staleTime: 0,
       refetchOnWindowFocus: false,
@@ -109,34 +58,91 @@ export default function CdnPage() {
     })),
   });
   const busy = queries.some((query) => query.isFetching);
+  const overseas = useQuery({
+    queryKey: queryKeys.home.browserIp(),
+    queryFn: ({ signal }) => getBrowserIp(4, signal),
+    staleTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const domestic = useQuery({
+    queryKey: queryKeys.egress.domestic(),
+    queryFn: ({ signal }) => getDomesticIp(signal),
+    staleTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const overseasIp = overseas.data?.ip;
+  const domesticIp =
+    domestic.data?.ip && domestic.data.ip !== overseasIp
+      ? domestic.data.ip
+      : undefined;
+  const overseasGeo = useQuery({
+    queryKey: queryKeys.geo.byIp(overseasIp),
+    enabled: Boolean(overseasIp),
+    queryFn: ({ signal }) => getGeo(overseasIp!, signal),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const domesticGeo = useQuery({
+    queryKey: queryKeys.geo.byIp(domesticIp),
+    enabled: Boolean(domesticIp),
+    queryFn: ({ signal }) => getGeo(domesticIp!, signal),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const httpExits = [
+    domesticIp
+      ? {
+          ip: domesticIp,
+          ...domestic.data,
+          ...domesticGeo.data,
+          path: "domestic" as const,
+        }
+      : undefined,
+    overseasIp
+      ? {
+          ip: overseasIp,
+          ...overseas.data,
+          ...overseasGeo.data,
+          path: "overseas" as const,
+        }
+      : undefined,
+  ].filter((item): item is NonNullable<typeof item> => Boolean(item?.ip));
+  const hits = providers.map((provider, index) => ({
+    id: provider.id,
+    name: provider.name,
+    family: provider.family,
+    familyLabel: provider.familyLabel,
+    path: provider.path,
+    website: provider.website,
+    url: provider.url,
+    node: queries[index].data?.node,
+    cache: queries[index].data?.cache,
+    loading: queries[index].isFetching,
+    error: queries[index].error?.message,
+  }));
   return (
-    <>
-      <PageHeading title={t("CDN 命中节点")} description="" />
-      <div className="toolbar">
-        <ActionButton busy={busy} onClick={() => setRound((n) => n + 1)}>
-          {busy ? t("检测中...") : t("重新检测")}
-        </ActionButton>
-        <span className="small muted">
-          {queries.filter((query) => query.isSuccess).length}/{providers.length}{" "}
-          {t("可读取")}
-        </span>
-      </div>
-      <Card>
-        <CardContent>
-          <DataTable
-            className="cdn-table"
-            columns={columns}
-            getRowId={(row) => row.name}
-            animateChanges={false}
-            data={providers.map((provider, index) => ({
-              name: provider.name,
-              ...queries[index].data,
-              loading: queries[index].isFetching,
-              error: queries[index].error?.message,
-            }))}
-          />
-        </CardContent>
-      </Card>
-    </>
+    <div className="space-y-3">
+      <CdnStage
+        hits={hits}
+        busy={busy}
+        httpExits={httpExits}
+        action={
+          <ActionButton
+            size="sm"
+            busy={busy}
+            onClick={() => setRound((n) => n + 1)}
+          >
+            {busy ? t("检测中...") : t("重新检测")}
+          </ActionButton>
+        }
+      />
+      <p className="text-xs text-muted-foreground leading-relaxed mt-2">
+        {t(
+          "每个 HTTP 出口单独一棵子树。国内 CDN 挂在国内出口下，海外 CDN 挂在海外出口下。节点是边缘 POP，不是你的公网 IP。",
+        )}
+      </p>
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatedValue } from "@/components/animated-value";
 import { CountryFlag } from "@/components/country-flag";
 import { DataTable } from "@/components/data-table";
@@ -56,6 +56,9 @@ const columns: ColumnDef<RtcResult>[] = [
 ];
 export default function WebRtcPage() {
   const [round, setRound] = useState(0);
+  useEffect(() => {
+    document.title = t("WebRTC 出口检测");
+  }, []);
   const query = useQuery({
     queryKey: ["webrtc-diagnostic", round],
     queryFn: ({ signal }) => runWebRtc(undefined, signal),

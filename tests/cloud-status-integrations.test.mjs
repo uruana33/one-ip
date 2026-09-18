@@ -228,6 +228,31 @@ test("all three integrated Worker routes return normalized healthy status", asyn
   }
 });
 
+test("Bandwagon parses active incidents from the current page markup", () => {
+  const page = `<title>BandwagonHost Status</title>
+    <p class="eyebrow">BandwagonHost Status</p>
+    <h1>Active incident</h1>
+    <span class="summary summary-active">
+            1 active        </span>
+    <article class="issue">
+      <div class="issue-title-row">
+        <h3><a href="/issue.php?id=1789362680">Singapore China Telecom maintenance</a></h3>
+        <span class="status status-maintenance">Maintenance</span>
+      </div>
+      <p class="meta">Updated Sep 13, 2026 10:11 PM PDT</p>
+    </article>`;
+  const result = parseBandwagon(page);
+  assert.equal(result.status.indicator, "maintenance");
+  assert.equal(result.incidents.length, 1);
+  assert.equal(result.incidents[0].name, "Singapore China Telecom maintenance");
+  assert.equal(result.incidents[0].status, "Maintenance");
+  assert.equal(
+    result.incidents[0].shortlink,
+    "https://bwhstatus.com/issue.php?id=1789362680",
+  );
+  assert.equal(result.incidents[0].updated_at, "2026-09-14T05:11:00.000Z");
+});
+
 test("Bandwagon reports no incidents only when the official page explicitly says so", () => {
   const page =
     '<title>BandwagonHost Status</title><h1>All systems operational</h1><span class="summary summary-ok">Operational</span>';

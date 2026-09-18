@@ -19,16 +19,32 @@ test("status page initially enables a small batch on the all filter", () => {
   );
 });
 
-test("status page enables the current group and detail service on demand", () => {
+test("status page batches a group and keeps the focused service visible", () => {
   const ids = statusLoadIds(services, "AI", "0", 0);
   assert.equal(ids.has("0"), true);
+  assert.equal([...ids].filter((id) => id !== "0").length, statusBatchSize);
   assert.deepEqual(
     [...ids].filter((id) => id !== "0").sort(),
     services
       .filter((service) => service.url && service.group === "AI")
+      .slice(0, statusBatchSize)
       .map((service) => service.id)
       .sort(),
   );
+});
+
+test("status page advances batches within the selected group", () => {
+  const ai = services.filter(
+    (service) => service.url && service.group === "AI",
+  );
+  const complete = new Set(ai.slice(0, statusBatchSize).map((s) => s.id));
+  assert.equal(
+    statusLoadBatch(services, (service) => complete.has(service.id), "AI"),
+    1,
+  );
+  const finalBatch = Math.ceil(ai.length / statusBatchSize) - 1;
+  const ids = statusLoadIds(services, "AI", null, finalBatch);
+  assert.equal(ids.size, ai.length);
 });
 
 test("status page batches eventually cover every integrated service", () => {

@@ -26,11 +26,11 @@ const baseSource = {
 };
 
 test("sources use explicit stable IDs and preserve source behavior", () => {
-  assert.equal(sourceRegistry.length, 50);
+  assert.equal(sourceRegistry.length, 37);
   assert.equal(rawSites.length, sourceRegistry.length);
   assert.ok(rawSites.every((source) => typeof source.id === "string"));
-  assert.equal(sourceRegistry[0].id, "legacy-703995bb");
-  assert.equal(sourceRegistry[49].id, "legacy-0a63fc64");
+  assert.equal(sourceRegistry[0].id, "legacy-02289ad2");
+  assert.equal(sourceRegistry.at(-1).id, "legacy-255ee8bd");
 
   const ids = sourceRegistry.map((source) => source.id);
   assert.equal(new Set(ids).size, ids.length);
@@ -41,11 +41,11 @@ test("sources use explicit stable IDs and preserve source behavior", () => {
   assert.ok(
     sourceRegistry.every((source) => source.groups.includes(source.type)),
   );
-
   assert.ok(
-    sourceRegistry.some(
+    sourceRegistry.every(
       (source) =>
-        source.method === "unsupported" && source.execution === "link-only",
+        source.execution === "client-request" &&
+        source.method !== "unsupported",
     ),
   );
   assert.ok(
@@ -55,6 +55,55 @@ test("sources use explicit stable IDs and preserve source behavior", () => {
   );
   for (const source of sourceRegistry)
     assert.equal(sourceById(source.id), source);
+});
+
+test("the default split batch mixes domestic echo with overseas traces", () => {
+  const initial = sourceRegistry
+    .filter(
+      (source) =>
+        source.enabledByDefault && source.execution === "client-request",
+    )
+    .slice(0, 8)
+    .map((source) => source.name);
+  assert.deepEqual(initial, [
+    "IP.cn",
+    "IP.SB",
+    "网易",
+    "字节跳动",
+    "Cloudflare中国",
+    "高通中国",
+    "discord.com",
+    "x.com",
+  ]);
+});
+
+test("the catalog keeps one representative per crowded split group", () => {
+  const extra = (group) =>
+    sourceRegistry
+      .filter((source) => source.extra?.includes(group))
+      .map((source) => source.name);
+  assert.deepEqual(extra("ai"), [
+    "claude.ai",
+    "chatgpt.com",
+    "grok.com",
+    "perplexity.ai",
+    "midjourney.com",
+  ]);
+  assert.deepEqual(extra("crypto"), [
+    "coinbase.com",
+    "www.okx.com",
+    "binance.com",
+  ]);
+  assert.deepEqual(
+    extra("ecommerce").filter((name) => name !== "shopify.com"),
+    ["amazon.com", "shopee.com"],
+  );
+  assert.deepEqual(extra("risk"), [
+    "www.okta.com",
+    "revolut.com",
+    "hcaptcha.com",
+    "challenges.cloudflare.com",
+  ]);
 });
 
 test("diagnostic query keys carry the source registry and parser contract", () => {

@@ -1,0 +1,87 @@
+/* Shared brand color for both light and dark appearance. */
+:root,
+:root[data-color] {
+  --primary: oklch(0.55 0.22 245);
+  --primary-foreground: #fff;
+  --ring: var(--primary);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: #fff;
+  --sidebar-ring: var(--primary);
+}
+
+/* Reference geometry: 1180px cyber shell, modern typography, glassmorphism. */
+:root {
+  --background: #f8fafc;
+  --foreground: #090e17;
+  --card: rgba(255, 255, 255, 0.92);
+  --card-foreground: #090e17;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --accent: #f1f5f9;
+  --secondary: #f1f5f9;
+  --subtle: #94a3b8;
+  --success: #10b981;
+  --success-soft: #d1fae5;
+  --success-text: #065f46;
+  --good: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info-soft: #e0f2fe;
+  --info-text: #0284c7;
+  --camp-cn: #dc2626;
+  --tool-shadow:
+    0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 1px 4px -1px rgba(0, 0, 0, 0.03);
+}
+.dark,
+.dark[data-color] {
+  --primary: #00f0ff;
+  --primary-foreground: #040814;
+  --ring: #00f0ff;
+  --background: #050811;
+  --foreground: #f1f5f9;
+  --card: rgba(10, 16, 30, 0.88);
+  --card-foreground: #f8fafc;
+  --muted: rgba(20, 29, 48, 0.7);
+  --muted-foreground: #94a3b8;
+  --border: rgba(56, 189, 248, 0.18);
+  --input: rgba(56, 189, 248, 0.22);
+  --accent: rgba(30, 41, 65, 0.8);
+  --secondary: rgba(26, 36, 56, 0.8);
+  --subtle: #64748b;
+  --success: #10b981;
+  --success-soft: rgba(16, 185, 129, 0.2);
+  --success-text: #34d399;
+  --good: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info-soft: rgba(14, 165, 233, 0.2);
+  --info-text: #38bdf8;
+  --camp-cn: #f87171;
+  --tool-shadow:
+    0 10px 36px -4px rgba(0, 0, 0, 0.6), 0 0 24px -4px rgba(0, 240, 255, 0.15);
+}
+body {
+  line-height: 1.6;
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+.dark body {
+  background-image:
+    radial-gradient(
+      ellipse 110% 70% at 50% -25%,
+      rgba(0, 240, 255, 0.18),
+      transparent 75%
+    ),
+    radial-gradient(
+      ellipse 80% 60% at 95% 10%,
+      rgba(99, 102, 241, 0.16),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 60% 50% at 5% 35%,
+      rgba(16, 185, 129, 0.09),
+      transparent 60%
+    );
+}

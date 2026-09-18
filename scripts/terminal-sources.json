@@ -11,6 +11,16 @@
       "id": "legacy-c8ff1d5c",
       "method": "ip-json",
       "url": "https://api.ip.sb/jsonip"
+    },
+    {
+      "id": "legacy-92cb4290",
+      "method": "ip-json",
+      "url": "https://api64.ipify.org/?format=json"
+    },
+    {
+      "id": "legacy-255ee8bd",
+      "method": "ip-json",
+      "url": "https://ident.me/json"
     }
   ]
 }

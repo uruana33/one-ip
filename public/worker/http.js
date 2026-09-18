@@ -106,6 +106,31 @@ export async function boundedJson(
     throw new HttpError(errorStatus, "内容不是有效 JSON");
   }
 }
+
+export async function boundedText(response, maxBytes = 400_000) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new HttpError(502, "页面内容为空");
+  let size = 0;
+  const chunks = [];
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) throw new HttpError(502, "页面内容过大");
+      chunks.push(value);
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return new TextDecoder().decode(bytes);
+}
 export async function upstream(url, init = {}, maxBytes = 2_000_000) {
   let response;
   try {

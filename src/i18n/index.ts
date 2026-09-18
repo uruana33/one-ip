@@ -58,8 +58,6 @@ export function initializeLocale() {
   if (description)
     description.setAttribute(
       "content",
-      t(
-        "IP 查询、网站分流、WebRTC 检测、全球 Ping、服务状态和 WHOIS 查询工具。",
-      ),
+      t("IP 查询、网站分流、WebRTC 检测、地址查询、服务状态等网络工具。"),
     );
 }

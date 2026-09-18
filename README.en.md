@@ -1,4 +1,4 @@
-# One IP
+# IP network tools
 
 <p align="left">
   <img src="https://img.shields.io/badge/React-19-282C34?logo=react&amp;logoColor=61DAFB" alt="React 19" />
@@ -10,12 +10,11 @@
   <img src="https://img.shields.io/badge/Jotai-000000" alt="Jotai" />
   <img src="https://img.shields.io/badge/TanStack_Query-FF4154?logo=reactquery&amp;logoColor=white" alt="TanStack Query" />
   <img src="https://img.shields.io/badge/Cloudflare_Workers-F38020?logo=cloudflareworkers&amp;logoColor=white" alt="Cloudflare Workers" />
-  <img src="https://img.shields.io/badge/Leaflet-199900?logo=leaflet&amp;logoColor=white" alt="Leaflet" />
   <img src="https://img.shields.io/badge/pnpm-10-F69220?logo=pnpm&amp;logoColor=white" alt="pnpm 10" />
   <img src="https://img.shields.io/badge/Prettier-F7B93E?logo=prettier&amp;logoColor=black" alt="Prettier" />
 </p>
 
-A toolbox for IP lookups, network diagnostics, browser checks and AI service status.
+A toolbox for IP lookups, network diagnostics and AI service status.
 
 [中文](README.md) · **English**
 
@@ -53,25 +52,23 @@ Returns `ip`, `source`, `checked_at`, `score`, `status`, location, ISP, ASN and 
 4. Set the build command to `pnpm build` and the deploy command to `pnpm deploy`. Use Node.js 24 and pnpm 10.32.1. Keep the default root directory.
 5. Deploy and open the assigned `workers.dev` address. Use the Worker settings to connect a custom domain.
 
-The project uses **Cloudflare Workers with Static Assets**. The `/api/*` routes need a Worker. Core features require no application environment variables or API keys. See “Verification” for Turnstile and reCAPTCHA setup.
+The project uses **Cloudflare Workers with Static Assets**. The `/api/*` routes need a Worker. Core features require no application environment variables or API keys.
 
 Workers Builds builds and deploys when `main` receives a commit. The button above points to the original repository. To preserve the fork relationship and update workflow, follow the steps to import your fork.
 
 ## Features
 
-| Module                   | Features                                                                                                                                                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Overview                 | Domestic and external IPv4 probes, location, ISP, reputation and network classifications                                                                      |
-| IP details               | IPv4 / IPv6 lookups, ASN, CIDR, registration, network attributes, risk flags, maps, location comparison and related addresses, subject to source availability |
-| Routing and connectivity | Compare website egress addresses, group sites by IP, measure HTTP response times over multiple samples and sort by median latency                             |
-| Global Ping              | Globalping probes, region and city selection, latency, packet loss and incremental results                                                                    |
-| DNS / CDN                | DNS resolver egress, CDN serving nodes and available cache metadata                                                                                           |
-| WHOIS                    | RDAP records for domains, IPs and ASNs, including raw responses                                                                                               |
-| Browser checks           | Environment details, FingerprintJS fingerprints, consistency checks, CreepJS modules, automation signals, permissions and WebRTC                              |
-| AI access                | ChatGPT, Claude, Grok, Perplexity, Gemini, DeepSeek, Qwen and Kimi resource probes, with egress comparisons where supported                                   |
-| Service status           | Official status feeds, incidents, maintenance, components and event details                                                                                   |
-| Usability                | Chinese / English, light / dark themes, mobile layouts and drawers, local lookup history, QR sharing and link copying                                         |
-| Optional verification    | Cloudflare Turnstile and Google reCAPTCHA v3; menu entries require complete configuration and a matching hostname                                             |
+| Module             | Features                                                                                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overview           | Domestic and external IPv4 probes, location, ISP, reputation and network classifications                                                                |
+| IP details         | IPv4 / IPv6 lookups, ASN, CIDR, registration, network attributes, risk flags, location comparison and related addresses, subject to source availability |
+| Egress observation | Compare website egress addresses, group sites by IP, inspect DNS resolver egress and CDN serving nodes                                                  |
+| Global Ping        | Globalping probes, region and city selection, latency, packet loss and incremental results                                                              |
+| DNS / CDN          | DNS resolver egress, CDN serving nodes and available cache metadata                                                                                     |
+| WHOIS              | RDAP records for domains, IPs and ASNs, including raw responses                                                                                         |
+| AI access          | ChatGPT, Claude, Grok, Perplexity, Gemini, DeepSeek, Qwen and Kimi resource probes, with egress comparisons where supported                             |
+| Service status     | Official status feeds, incidents, maintenance, components and event details                                                                             |
+| Usability          | Chinese / English, light / dark themes, mobile layouts and drawers, local lookup history, QR sharing and link copying                                   |
 
 Some lookups rely on third-party services and may fail because of rate limits or CORS restrictions. HTTP timing isn't the same as ICMP Ping. IP classifications and reputation scores are references, not official decisions from AI platforms.
 
@@ -141,34 +138,11 @@ pnpm deploy
 
 `pnpm deploy` uses the build output in `dist`; run `pnpm build` before deployment. `make deploy` updates the version, builds and deploys without a secrets file.
 
-## Verification (optional)
-
-Choose Turnstile or reCAPTCHA and provide a Site Key, Secret and allowed hostname. The verification entry appears when the configuration is complete and the hostname matches. Missing configuration keeps the entry hidden.
-
-| Provider     | Settings                                                        |
-| ------------ | --------------------------------------------------------------- |
-| Turnstile    | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET`, `TURNSTILE_HOSTNAMES` |
-| reCAPTCHA v3 | `RECAPTCHA_SITE_KEY`, `RECAPTCHA_SECRET`, `RECAPTCHA_HOSTNAMES` |
-
-For local development, copy the [configuration example](docs/config/challenges.env.example) to `.dev.vars` in the project root, fill in your keys and restart. Edit the existing file if present. Use comma-separated hostnames such as `example.com`, and allow those hostnames in the provider's console.
-
-For production, enter the settings under Worker → Settings → Variables and Secrets, or run `pnpm exec wrangler secret put NAME`. To use a configuration file, copy `.secrets.example` to `.secrets.production.env`, fill it in and run:
-
-```bash
-node scripts/sync-worker-secrets.mjs production --check
-node scripts/sync-worker-secrets.mjs production
-```
-
-The script uploads non-empty values, preserves existing secrets and skips missing optional files. Sensitive files are in the Git ignore list. Store secrets in Worker settings, not `VITE_*` variables. Check the `configured` fields at `/api/browser/challenges` to inspect the setup.
-
-reCAPTCHA uses v3 score-based keys. The backend validates hostname, the `browser_check` action and score, with a passing threshold of 0.5. The v2 checkbox and Enterprise assessment API are unsupported. Production rejects localhost.
-
 ## Structure and data sources
 
 - `src/app.css`: interface styles; `src/components/ui`: shadcn/ui components.
-- `src/views`: network, browser, AI and status pages; `public/worker`: Worker APIs.
+- `src/views`: network, AI and status pages; `public/worker`: Worker APIs.
 - Net.Coffee: IP details. Available fields depend on the API response.
 - Globalping: global measurements; IANA / RDAP: registration records; official platform status feeds: service status.
-- FingerprintJS and CreepJS: browser checks. See [vendor/browser-diagnostics](vendor/browser-diagnostics/README.md) for module details.
 
 Issues and suggestions are welcome. Redact private information such as IPs, locations and fingerprint identifiers before sharing screenshots.

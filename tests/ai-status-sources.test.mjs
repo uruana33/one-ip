@@ -44,3 +44,50 @@ test("browser and Worker share the same verified AI status sources", () => {
   for (const id of ['31','32','35']) assert.ok(web.find(s => s.id === id).url);
   assert.equal(web.find(s => s.id === '35').page, 'https://status.moonshot.cn');
 });
+test("DeepSeek falls back to reachability probing when the RSS endpoint is blocked", async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async (url) => {
+    calls++;
+    if (url === "https://status.deepseek.com/feed.rss")
+      throw new Error("TLS reset");
+    // Probing api.deepseek.com (401) and www.deepseek.com (200) are both reachable.
+    if (url === "https://api.deepseek.com/")
+      return new Response(null, { status: 401 });
+    assert.equal(url, "https://www.deepseek.com/");
+    return new Response("ok", { status: 200 });
+  };
+  try {
+    const result = await getAiStatus({
+      id: "32",
+      url: "https://status.deepseek.com/feed.rss",
+      page: "https://status.deepseek.com",
+    });
+    assert.equal(result.status.indicator, "none");
+    assert.equal(calls, 3);
+  } finally { globalThis.fetch = original; }
+});
+test("probe-backed services report reachability without an official status page", async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async (url) => {
+    calls++;
+    if (url === "https://www.doubao.com/")
+      return new Response("ok", { status: 200 });
+    assert.equal(url, "https://ark.cn-beijing.volces.com/");
+    return new Response(null, { status: 401 });
+  };
+  try {
+    const result = await getAiStatus({
+      id: "doubao",
+      name: "豆包 (Doubao)",
+      url: "https://www.doubao.com/",
+      probe: [
+        "https://www.doubao.com/",
+        "https://ark.cn-beijing.volces.com/",
+      ],
+    });
+    assert.equal(result.status.indicator, "none");
+    assert.equal(calls, 2);
+  } finally { globalThis.fetch = original; }
+});
