@@ -48,7 +48,7 @@ Returns `ip`, `checked_at`, `score`, `status`, location, ISP, ASN and `flags` (r
 1. [Fork this project](https://github.com/uruana33/one-ip/fork) into your GitHub account.
 2. Open the [Cloudflare dashboard](https://dash.cloudflare.com/), go to **Workers & Pages**, create a Worker and choose to import a Git repository.
 3. Connect GitHub, select your `one-ip` fork and set the production branch to `main`.
-4. Set the build command to `pnpm build` and the deploy command to `pnpm deploy`. Use Node.js 24 and pnpm 10.32.1. Keep the default root directory.
+4. Set the build command to `pnpm build` and the deploy command to `pnpm run deploy`. Use Node.js 24 and pnpm 10.32.1. Keep the default root directory.
 5. Deploy and open the assigned `workers.dev` address. Use the Worker settings to connect a custom domain.
 
 The project uses **Cloudflare Workers with Static Assets**. The `/api/*` routes need a Worker. Core features require no application environment variables or API keys.
@@ -119,10 +119,10 @@ pnpm lint
 
 # Log in to Cloudflare and deploy
 pnpm exec wrangler login
-pnpm deploy
+pnpm run deploy
 ```
 
-`pnpm deploy` uses the build output in `dist`; run `pnpm build` before deployment. `make deploy` updates the version, builds and deploys without a secrets file.
+`pnpm run deploy` uses the build output in `dist`; run `pnpm build` before deployment. `make deploy` updates the version, builds and deploys without a secrets file.
 
 ## Structure and data sources
 
