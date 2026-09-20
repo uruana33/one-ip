@@ -122,7 +122,15 @@ export function adaptCoffee(data: CoffeeIp): CoffeeLookup {
     },
     sources,
     risk: {
-      available: true,
+      available: [
+        data.is_vpn,
+        data.is_proxy,
+        data.is_tor,
+        data.is_crawler,
+        data.is_abuser,
+      ].some((value) => typeof value === "boolean")
+        ? true
+        : undefined,
       source: "Net.Coffee",
       vpn: data.is_vpn,
       proxy: data.is_proxy,

@@ -2,14 +2,13 @@ import { CopyButton } from "@/components/copy-button";
 import { CountryFlag } from "@/components/country-flag";
 import { SiteLogo } from "@/components/site-logo";
 import { IpText, Pending } from "@/components/toolkit";
-import { t } from "@/i18n";
+import { locale, t } from "@/i18n";
 import { queryKeys } from "@/lib/query-keys";
-import type { Risk } from "@/lib/types";
 import { lookupIp } from "@/views/ip/api";
-import type { CoffeeIp } from "@/views/ip/coffee";
 import { useQuery } from "@tanstack/react-query";
+import { attributeTags, regionTag } from "./attribute-tags";
 import type { DefaultExitSource } from "./default-exit";
-import type { AiCamp } from "./platforms";
+import { probeCoverage } from "./probe";
 import type { AiNetworkItem } from "./use-ai-network";
 
 function latencyTone(
@@ -23,57 +22,6 @@ function latencyTone(
   return "slow";
 }
 
-type Tag = { label: string; tone: "good" | "warn" | "bad" | "muted" };
-
-function trustScore(coffee: CoffeeIp | undefined): number | null {
-  const score = coffee?.trust_score;
-  return typeof score === "number" &&
-    Number.isFinite(score) &&
-    score >= 0 &&
-    score <= 100
-    ? Math.round(score)
-    : null;
-}
-
-function attributeTags(
-  coffee: CoffeeIp | undefined,
-  risk: Risk | undefined,
-): Tag[] {
-  const tags: Tag[] = [];
-  if (coffee?.isResidential === true)
-    tags.push({ label: t("住宅 IP"), tone: "good" });
-  else if (coffee?.is_datacenter === true)
-    tags.push({ label: t("机房 IP"), tone: "warn" });
-  else if (coffee?.isResidential === false)
-    tags.push({ label: t("非住宅 IP"), tone: "warn" });
-  const flagged = risk?.vpn || risk?.proxy || risk?.tor || risk?.recent_abuse;
-  if (risk?.vpn) tags.push({ label: "VPN", tone: "warn" });
-  if (risk?.proxy) tags.push({ label: t("代理"), tone: "warn" });
-  if (risk?.tor) tags.push({ label: "Tor", tone: "bad" });
-  if (risk?.recent_abuse) tags.push({ label: t("滥用记录"), tone: "bad" });
-  if (!flagged && risk?.available)
-    tags.push({ label: t("无代理标记"), tone: "good" });
-  const score = trustScore(coffee);
-  if (score != null)
-    tags.push({
-      label: t("信任 {0}", [score]),
-      tone: score >= 70 ? "good" : score >= 40 ? "warn" : "bad",
-    });
-  return tags;
-}
-
-function regionTag(camp: AiCamp, countryCode: string | undefined): Tag | null {
-  if (!countryCode) return null;
-  const cc = countryCode.toLowerCase();
-  if (camp === "us")
-    return cc === "cn"
-      ? { label: t("出口在中国大陆"), tone: "bad" }
-      : { label: t("属地正常"), tone: "good" };
-  return cc === "cn"
-    ? { label: t("属地正常"), tone: "good" }
-    : { label: t("出口在海外"), tone: "warn" };
-}
-
 function LatencyReadout({
   item,
   pending,
@@ -83,6 +31,7 @@ function LatencyReadout({
 }) {
   const { result } = item;
   const median = result?.median;
+  const coverage = result ? probeCoverage(result) : null;
   if (pending && median == null)
     return (
       <span className="ai-hero-latency-value">
@@ -95,13 +44,41 @@ function LatencyReadout({
         className="ai-hero-latency-value ai-hero-latency-none"
         title={result?.description}
       >
-        {result?.status === "restricted" ? t("检测受限") : t("未确认")}
+        <span>
+          {result?.status === "restricted" ? t("检测受限") : t("未确认")}
+        </span>
+        {coverage ? (
+          <span className="ai-hero-latency-samples">
+            {t("成功 {0}/{1}", [coverage.successful, coverage.total])}
+          </span>
+        ) : null}
+        {item.resultStale && item.resultUpdatedAt ? (
+          <span className="ai-hero-latency-samples">
+            {t("上次结果 · {0}", [
+              new Date(item.resultUpdatedAt).toLocaleString(locale),
+            ])}
+          </span>
+        ) : null}
       </span>
     );
   return (
     <span className="ai-hero-latency-value" title={result?.description}>
-      <span className="ai-hero-latency-number">{Math.round(median)}</span>
-      <span className="ai-hero-latency-unit">ms</span>
+      <span>
+        <span className="ai-hero-latency-number">{Math.round(median)}</span>
+        <span className="ai-hero-latency-unit">ms</span>
+      </span>
+      {coverage ? (
+        <span className="ai-hero-latency-samples">
+          {t("成功 {0}/{1}", [coverage.successful, coverage.total])}
+        </span>
+      ) : null}
+      {item.resultStale && item.resultUpdatedAt ? (
+        <span className="ai-hero-latency-samples">
+          {t("上次结果 · {0}", [
+            new Date(item.resultUpdatedAt).toLocaleString(locale),
+          ])}
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -227,7 +204,7 @@ function SplitRoute({ source }: { source: DefaultExitSource }) {
         </span>
       </div>
       <p className="ai-hero-geo" title={geoLine ?? undefined}>
-        {lookup.isPending || lookup.isFetching ? (
+        {source.ip && (lookup.isPending || lookup.isFetching) ? (
           <Pending>{t("查询归属…")}</Pending>
         ) : (
           (geoLine ?? (lookup.isError ? t("属性暂不可用") : t("归属未知")))
@@ -240,7 +217,7 @@ function SplitRoute({ source }: { source: DefaultExitSource }) {
               {tag.label}
             </span>
           ))
-        ) : lookup.isPending || lookup.isFetching ? (
+        ) : source.ip && (lookup.isPending || lookup.isFetching) ? (
           <span className="ai-tag ai-tag-muted">
             <Pending>{t("属性检测中…")}</Pending>
           </span>
@@ -264,7 +241,7 @@ export function CampCard({
   const isPlatformExit = Boolean(platform.traceDomain);
   const median = result?.median;
   const tone = latencyTone(median, pending);
-  const online = median != null;
+  const online = median != null && !item.resultStale;
   const geo = lookup.data?.geo;
   const coffee = lookup.data?.coffee;
   const countryCode = geo?.country_code ?? exit.countryCode;
@@ -305,8 +282,7 @@ export function CampCard({
           ? t("证据来源 · {0}", [exit.source.label])
           : t("证据来源 · 默认出口观察");
   return (
-    <article className="ai-hero-card hud-frame" data-tone={tone}>
-      <div className="ai-hero-scan" aria-hidden="true" />
+    <article className="ai-hero-card" data-tone={tone}>
       <header className="ai-hero-head">
         <span className="ai-hero-identity">
           <span className="ai-hero-logo">
@@ -342,7 +318,11 @@ export function CampCard({
               </span>
             ) : (
               <span className="muted">
-                {isPlatformExit ? t("暂不可用") : t("检测失败")}
+                {isPlatformExit
+                  ? t("暂不可用")
+                  : exit.configured
+                    ? t("检测失败")
+                    : t("未配置")}
               </span>
             ))}
         </div>
@@ -352,29 +332,41 @@ export function CampCard({
             <span> · {t("专属 trace 端点")}</span>
           ) : null}
         </p>
+        {exit.stale && exit.updatedAt ? (
+          <p className="ai-hero-evidence">
+            {t("上次出口结果 · {0}", [
+              new Date(exit.updatedAt).toLocaleString(locale),
+            ])}
+          </p>
+        ) : null}
         {splitSources ? (
-          <>
+          <div className="ai-hero-attributes">
             <div className="ai-hero-routes">
               {splitSources.map((source) => (
                 <SplitRoute key={source.id} source={source} />
               ))}
             </div>
             <p className="ai-hero-split-note">
-              {t(
-                "检测到分流：访问该平台实际走哪条线路取决于分流规则，浏览器无法直接确认。",
-              )}
+              {t("这些是探针观测的不同出口，平台实际出口尚未确认。")}
             </p>
-          </>
+          </div>
         ) : (
-          <>
+          <div className="ai-hero-attributes">
             <p className="ai-hero-geo" title={geoLine ?? undefined}>
-              {lookup.isPending || lookup.isFetching ? (
+              {exitIp && (lookup.isPending || lookup.isFetching) ? (
                 <Pending>{t("查询归属…")}</Pending>
               ) : (
                 (geoLine ??
                 (lookup.isError ? t("属性暂不可用") : t("归属未知")))
               )}
             </p>
+            {lookup.isRefetchError && lookup.dataUpdatedAt ? (
+              <p className="ai-hero-evidence">
+                {t("上次属性结果 · {0}", [
+                  new Date(lookup.dataUpdatedAt).toLocaleString(locale),
+                ])}
+              </p>
+            ) : null}
             {asnLine ? <p className="ai-hero-asn">{asnLine}</p> : null}
             <div className="ai-camp-card-tags">
               {tags ? (
@@ -383,7 +375,7 @@ export function CampCard({
                     {tag.label}
                   </span>
                 ))
-              ) : lookup.isPending || lookup.isFetching ? (
+              ) : exitIp && (lookup.isPending || lookup.isFetching) ? (
                 <span className="ai-tag ai-tag-muted">
                   <Pending>{t("属性检测中…")}</Pending>
                 </span>
@@ -391,7 +383,7 @@ export function CampCard({
                 <span className="ai-tag ai-tag-muted">{t("属性暂不可用")}</span>
               )}
             </div>
-          </>
+          </div>
         )}
       </div>
     </article>

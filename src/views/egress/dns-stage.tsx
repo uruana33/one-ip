@@ -1,7 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
-import { CountryFlag } from "@/components/country-flag";
 import { NumberTicker } from "@/components/number-ticker";
-import { ActionButton, IpText } from "@/components/toolkit";
+import { ActionButton } from "@/components/toolkit";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { t } from "@/i18n";
 import { dnsSampleCount, type DnsProgress } from "@/views/dns-exit/api";
@@ -69,12 +68,6 @@ function laneMeta(lane: DnsLane) {
   return extras.join(" · ") || t("归属信息暂不可用");
 }
 
-function findLane(lanes: readonly DnsLane[], ip: string) {
-  return lanes.find(
-    (lane) => lane.ip === ip || lane.members.some((member) => member.ip === ip),
-  );
-}
-
 function collectHttpExits(
   provided: readonly DnsHttpExit[] | undefined,
   clients: DnsProgress["clients"] | undefined,
@@ -100,15 +93,36 @@ function collectHttpExits(
   return exits;
 }
 
-function HttpOriginLabel({ exits }: { exits: readonly DnsHttpExit[] }) {
-  if (!exits.length) return t("本机");
-  const exit = exits[0];
+function SourceOriginLabel({ path }: { path: DnsForestTree["key"] }) {
+  const label =
+    path === "domestic"
+      ? t("国内探测来源")
+      : path === "overseas"
+        ? t("海外探测来源")
+        : t("DNS 探测来源");
   return (
-    <span className="egress-flow-you-ip">
-      <CountryFlag code={exit.country_code} />
-      <IpText ip={exit.ip} link={false} />
+    <span className="egress-flow-you-ip" title={t("按探测来源分类")}>
+      {label}
     </span>
   );
+}
+
+function httpReferenceHint(tree: DnsForestTree, busy: boolean) {
+  const reference = tree.origin;
+  if (reference?.ip) {
+    return [
+      t("按探测来源分类"),
+      t("HTTP 出口仅作对照"),
+      reference.ip,
+      reference.country,
+      reference.isp,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+  return busy
+    ? t("正在读取 HTTP 对照出口")
+    : t("按探测来源分类，HTTP 出口仅作对照");
 }
 
 function DnsTreeMesh({
@@ -126,20 +140,11 @@ function DnsTreeMesh({
   onSelectIp: (ip: string) => void;
   onSelectSite: (id: string) => void;
 }) {
-  const origin = tree.origin;
   return (
     <EgressMesh
       layout={layout}
-      originLabel={<HttpOriginLabel exits={origin?.ip ? [origin] : []} />}
-      originHint={
-        origin?.ip
-          ? [t(tree.hint), origin.country, origin.isp]
-              .filter(Boolean)
-              .join(" · ")
-          : busy
-            ? t("正在读取出口 IP")
-            : t(tree.hint)
-      }
+      originLabel={<SourceOriginLabel path={tree.key} />}
+      originHint={httpReferenceHint(tree, busy)}
       lanes={toMeshLanes(tree.lanes, toneFrom)}
       onSelectIp={onSelectIp}
       onSelectSite={onSelectSite}
@@ -158,6 +163,7 @@ function toMeshLanes(lanes: readonly DnsLane[], toneFrom = 0): MeshLaneView[] {
   return lanes.map((lane, index) => ({
     key: lane.key,
     kind: lane.kind,
+    selectKey: lane.key,
     ip: lane.ip,
     geo: lane.geo,
     family: lane.family,
@@ -207,21 +213,24 @@ export function DnsStage({
   httpExits?: DnsHttpExit[];
   action?: ReactNode;
 }) {
-  const [detailIp, setDetailIp] = useState<string | null>(null);
+  const [detailLaneKey, setDetailLaneKey] = useState<string | null>(null);
   const [detailLeaf, setDetailLeaf] = useState<string | null>(null);
   const lanes = groupDnsLanes(state, busy);
   const exits = lanes.filter((lane) => lane.kind === "exit");
   const originExits = collectHttpExits(httpExits, state?.clients);
   const trees = splitDnsForest(lanes, originExits, busy);
   const forest = trees.length > 1;
+  const visibleLanes = trees.flatMap((tree) => tree.lanes);
   const addressCount = exits.reduce(
     (total, lane) => total + lane.members.length,
     0,
   );
-  const selectedLane = detailIp ? findLane(lanes, detailIp) : undefined;
+  const selectedLane = detailLaneKey
+    ? visibleLanes.find((lane) => lane.key === detailLaneKey)
+    : undefined;
   const parsedLeaf = detailLeaf ? parseDnsLeafId(detailLeaf) : undefined;
   const leafLane = parsedLeaf
-    ? lanes.find((lane) => lane.key === parsedLeaf.laneKey)
+    ? visibleLanes.find((lane) => lane.key === parsedLeaf.laneKey)
     : undefined;
   const selectedSource =
     parsedLeaf?.kind === "source"
@@ -263,15 +272,15 @@ export function DnsStage({
   const progress = Math.min(1, (state?.count ?? 0) / dnsSampleCount);
   const verdict =
     addressCount > 1
-      ? t("解析走到了不同出口")
+      ? t("解析器返回了多个地址")
       : addressCount === 1
-        ? t("解析走同一出口")
+        ? t("解析器返回了一个地址")
         : busy
           ? t("正在询问解析器")
           : t("还没有读到 DNS 出口");
 
   return (
-    <FlowStage className="egress-flow egress-dns cyber-cockpit-card hud-frame">
+    <FlowStage className="egress-flow egress-dns cyber-cockpit-card">
       <div className="egress-flow-toolbar">
         <div className="egress-flow-kicker">
           <span
@@ -289,7 +298,7 @@ export function DnsStage({
           </span>
           <p className="egress-flow-lead">
             {t(
-              "每个 HTTP 出口单独一棵子树。国内探测挂在国内出口下，海外探测挂在海外出口下。",
+              "国内和海外按探测来源分组。HTTP 出口单独作为对照，不代表每个 DNS 请求绑定该 IP。",
             )}
           </p>
         </div>
@@ -311,7 +320,7 @@ export function DnsStage({
       <ul className="egress-flow-stats">
         <li>
           <NumberTicker value={exits.length} />
-          <span>{t("条出口")}</span>
+          <span>{t("个解析器组")}</span>
         </li>
         <li>
           <NumberTicker value={addressCount} />
@@ -343,10 +352,10 @@ export function DnsStage({
                 busy={busy}
                 onSelectIp={(ip) => {
                   setDetailLeaf(null);
-                  setDetailIp(ip);
+                  setDetailLaneKey(ip);
                 }}
                 onSelectSite={(id) => {
-                  setDetailIp(null);
+                  setDetailLaneKey(null);
                   setDetailLeaf(id);
                 }}
               />
@@ -361,10 +370,10 @@ export function DnsStage({
           busy={busy}
           onSelectIp={(ip) => {
             setDetailLeaf(null);
-            setDetailIp(ip);
+            setDetailLaneKey(ip);
           }}
           onSelectSite={(id) => {
-            setDetailIp(null);
+            setDetailLaneKey(null);
             setDetailLeaf(id);
           }}
         />
@@ -374,7 +383,7 @@ export function DnsStage({
         open={sheet !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setDetailIp(null);
+            setDetailLaneKey(null);
             setDetailLeaf(null);
           }
         }}
@@ -441,7 +450,7 @@ export function DnsStage({
                 dnsLaneGroups(view.lane).find((item) =>
                   item.sources.some((source) => source.name === name),
                 )?.key ?? "source";
-              setDetailIp(null);
+              setDetailLaneKey(null);
               setDetailLeaf(dnsSourceId(view.lane.key, group, name));
             }}
           />

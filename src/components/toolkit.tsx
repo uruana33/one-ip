@@ -52,7 +52,7 @@ export function PageHeading({
   return (
     <header className="page-header">
       <div className="page-header-text">
-        <h1 className="cyber-gradient-title">{title}</h1>
+        <h1>{title}</h1>
         {description ? <p>{description}</p> : null}
       </div>
       {actions}

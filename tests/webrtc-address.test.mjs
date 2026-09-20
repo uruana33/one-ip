@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isPublicCandidate } from "../src/views/webrtc/api.ts";
+import {
+  compareStunEndpointFamilies,
+  isPublicCandidate,
+  sameIpFamily,
+} from "../src/views/webrtc/api.ts";
 
 test("equivalent IPv6 forms preserve local and public classifications", () => {
   for (const ip of [
@@ -30,4 +34,31 @@ test("equivalent IPv6 forms preserve local and public classifications", () => {
 test("malformed IPv6 candidates are rejected", () => {
   for (const ip of [":::1", "2001::db8::1", "abcd:", "::ffff:999.1.1.1"])
     assert.equal(isPublicCandidate(ip), false, ip);
+});
+
+test("STUN endpoint comparison ignores IPv4 versus IPv6 availability differences", () => {
+  const v4Only = [
+    { endpoint: "stun:a", ip: "1.1.1.1", public: true, candidateType: "srflx" },
+  ];
+  const v6Only = [
+    {
+      endpoint: "stun:b",
+      ip: "2001:4860:4860::8888",
+      public: true,
+      candidateType: "srflx",
+    },
+  ];
+  assert.equal(compareStunEndpointFamilies([...v4Only, ...v6Only]), false);
+  assert.equal(
+    compareStunEndpointFamilies([
+      ...v4Only,
+      { endpoint: "stun:b", ip: "8.8.8.8", public: true, candidateType: "srflx" },
+    ]),
+    true,
+  );
+});
+
+test("HTTP and STUN comparisons require the same IP family", () => {
+  assert.equal(sameIpFamily("1.1.1.1", "8.8.8.8"), true);
+  assert.equal(sameIpFamily("1.1.1.1", "2001:4860:4860::8888"), false);
 });

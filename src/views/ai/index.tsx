@@ -6,7 +6,7 @@ import {
   IpText,
   Pending,
 } from "@/components/toolkit";
-import { t } from "@/i18n";
+import { locale, t } from "@/i18n";
 import { trace, type TraceResult } from "@/lib/network";
 import { queryKeys } from "@/lib/query-keys";
 import { getGeo, getDomesticIp } from "@/views/home/api";
@@ -88,6 +88,13 @@ export default function PlatformDiagnostics({
               <IpText ip={exitIp} />
             )}
           </div>
+          {exit.isRefetchError && exit.dataUpdatedAt ? (
+            <p className="small muted">
+              {t("上次出口结果 · {0}", [
+                new Date(exit.dataUpdatedAt).toLocaleString(locale),
+              ])}
+            </p>
+          ) : null}
           <p className="text-xs leading-5 text-muted-foreground">
             {exit.isError ? (
               platform.traceDomain ? (

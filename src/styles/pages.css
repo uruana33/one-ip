@@ -315,16 +315,16 @@
   color: var(--muted-foreground);
 }
 .ip-chip-neutral {
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 5%, transparent);
+  color: var(--muted-foreground);
+  background: var(--muted);
 }
 .ip-chip-good {
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  color: var(--success-text);
+  background: var(--success-soft);
 }
 .ip-chip-residential {
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 25%, transparent);
+  color: var(--success-text);
+  background: var(--success-soft);
 }
 .ip-chip-warn {
   color: var(--warning);
@@ -570,49 +570,6 @@
   height: 24px;
   border-color: var(--primary);
   pointer-events: none;
-}
-
-.api-code-block {
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  background: var(--card);
-}
-.api-code-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--muted) 60%, transparent);
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 500;
-}
-.api-code-block pre.shiki {
-  margin: 0;
-  padding: 16px 20px;
-  overflow-x: auto;
-  font-size: 13px;
-  line-height: 1.7;
-  white-space: pre;
-}
-.api-code-block code {
-  font-family: var(--font-mono, ui-monospace, monospace);
-}
-.dark .api-code-block {
-  border-color: var(--border);
-  background: var(--card);
-}
-.dark .api-code-header {
-  border-color: var(--border);
-  background: color-mix(in srgb, var(--muted) 40%, transparent);
-  color: var(--muted-foreground);
-}
-.dark .api-code-block .shiki,
-.dark .api-code-block .shiki span {
-  color: var(--shiki-dark) !important;
-  background-color: var(--shiki-dark-bg) !important;
 }
 
 @media (max-width: 40rem) {
@@ -2027,5 +1984,120 @@
   }
   .egress-sheet-ips {
     grid-template-columns: 1fr;
+  }
+}
+
+.policy-doc {
+  max-width: 42rem;
+  padding-bottom: 8px;
+  animation: deck-enter 180ms var(--ease-enter) both;
+}
+.policy-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 22px;
+}
+.policy-switch a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    color 150ms var(--ease-enter),
+    background-color 150ms var(--ease-enter);
+}
+.policy-switch a:hover,
+.policy-switch a:focus-visible {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+.policy-switch a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.policy-switch a[aria-current="page"] {
+  color: var(--foreground);
+  font-weight: 650;
+  background: color-mix(in srgb, var(--muted) 88%, transparent);
+}
+.policy-mast h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+}
+.policy-lede {
+  margin: 10px 0 0;
+  max-width: 38rem;
+  color: color-mix(in srgb, var(--foreground) 78%, var(--muted-foreground));
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+.policy-meta {
+  margin: 12px 0 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.policy-section {
+  padding: 22px 0 0;
+  margin-top: 22px;
+  border-top: 1px solid var(--border);
+}
+.policy-section h2 {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+}
+.policy-section p {
+  margin: 0;
+  color: color-mix(in srgb, var(--foreground) 82%, var(--muted-foreground));
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+.policy-sources {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0 0;
+}
+.policy-sources > div {
+  display: grid;
+  grid-template-columns: 8.75rem minmax(0, 1fr);
+  gap: 4px 16px;
+  align-items: baseline;
+}
+.policy-sources dt {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.policy-sources dd {
+  margin: 0;
+  color: color-mix(in srgb, var(--foreground) 82%, var(--muted-foreground));
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+@media (max-width: 48rem) {
+  .policy-mast h1 {
+    font-size: 1.35rem;
+  }
+  .policy-sources > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .policy-doc {
+    animation: none;
   }
 }

@@ -43,11 +43,28 @@
 
 .ip-folio-quality {
   display: grid;
-  gap: 8px;
+  gap: 14px;
   margin-top: 2px;
-  padding: 14px 16px 16px;
+  padding: 16px 20px 0;
   border-radius: 16px;
   background: color-mix(in srgb, var(--muted) 42%, transparent);
+}
+
+.ip-folio-quality-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.ip-folio-estimate {
+  border: 1px solid color-mix(in srgb, var(--warning) 32%, transparent);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--warning) 6%, transparent);
 }
 
 .ip-folio-quality .ip-folio-kicker {
@@ -126,15 +143,196 @@
 
 .ip-folio-quality-hero {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px 22px;
+  grid-template-columns: auto minmax(0, 1fr) minmax(230px, 0.8fr);
+  gap: 16px 24px;
   align-items: center;
 }
 
 .ip-folio-quality-copy {
   display: grid;
-  gap: 6px;
+  gap: 10px;
   min-width: 0;
+}
+
+.ip-folio-quality-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ip-folio-quality-tags li {
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+
+.ip-folio-quality-tags li[data-tone="good"] {
+  color: var(--success-text);
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+}
+
+.ip-folio-quality-tags li[data-tone="warn"] {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--foreground);
+}
+
+.ip-folio-quality-proof {
+  min-width: 0;
+  padding-left: 22px;
+  border-left: 1px solid var(--line-strong);
+}
+
+.ip-folio-proof-title {
+  margin: 0 0 8px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 550;
+}
+
+.ip-folio-quality-proof dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.ip-folio-quality-proof dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+}
+
+.ip-folio-quality-proof dt {
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+
+.ip-folio-quality-proof dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.ip-folio-quality-proof dd[data-tone="bad"] {
+  color: var(--danger);
+}
+
+.ip-folio-quality-details {
+  border-top: 1px solid var(--line-strong);
+  min-width: 0;
+}
+
+.ip-folio-quality-details > summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  list-style: none;
+  padding: 11px 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.ip-folio-quality-details > summary::-webkit-details-marker {
+  display: none;
+}
+.ip-folio-quality-details > summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+.ip-folio-details-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--foreground);
+}
+.ip-folio-quality-details[open] .ip-folio-details-action svg {
+  transform: rotate(180deg);
+}
+
+.ip-folio-quality-expanded {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 18px 28px;
+  padding: 8px 0 16px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.ip-folio-quality-expanded h3 {
+  margin: 0 0 10px;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 650;
+}
+.ip-folio-reasons ul {
+  margin: 0 0 12px;
+  padding-left: 16px;
+}
+.ip-folio-reasons li + li {
+  margin-top: 7px;
+}
+.ip-folio-reasons p {
+  margin: 6px 0 0;
+}
+.ip-folio-quality-footnote {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line-strong);
+  padding-top: 10px;
+  font-size: 11px;
+}
+.ip-folio-quality-footnote p {
+  margin: 3px 0;
+}
+.ip-folio-quality-footnote a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ip-folio-calculation .ip-folio-formula {
+  min-width: 0;
+}
+.ip-folio-quality-wait {
+  padding: 20px 5px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .ip-folio-quality-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .ip-folio-quality-proof {
+    grid-column: 1 / -1;
+    padding: 12px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--line-strong);
+  }
+  .ip-folio-quality-proof dl {
+    gap: 6px;
+  }
+  .ip-folio-quality-expanded {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ip-folio-quality-copy {
+    gap: 8px;
+  }
+  .ip-folio-quality {
+    padding: 14px 14px 0;
+  }
+  .ip-folio .ip-folio-quality-kind {
+    font-size: 18px;
+  }
 }
 
 .ip-folio-quality-kind {
@@ -448,35 +646,59 @@
 }
 
 .ip-folio-evidence-card {
+  --tone: var(--muted-foreground);
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: relative;
   width: 100%;
   min-width: 0;
   padding: 14px 14px 12px;
+  border: 1px solid var(--line-strong);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--muted) 42%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--tone) 7%, var(--card)),
+    var(--card) 58%
+  );
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
   color: inherit;
   text-decoration: none;
   touch-action: manipulation;
   transition:
-    background-color 140ms var(--ease-enter, cubic-bezier(0.22, 1, 0.36, 1)),
-    box-shadow 140ms var(--ease-enter, cubic-bezier(0.22, 1, 0.36, 1));
+    transform 180ms var(--ease-enter, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color 160ms ease,
+    box-shadow 180ms var(--ease-enter, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+/* Tone hairline along the card's top edge. */
+.ip-folio-evidence-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(
+    90deg,
+    var(--tone),
+    color-mix(in srgb, var(--tone) 0%, transparent) 80%
+  );
+  opacity: 0.75;
+  pointer-events: none;
 }
 
 .ip-folio-evidence-card[data-tone="warn"] {
-  background: color-mix(in srgb, var(--warning) 10%, transparent);
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--warning) 80%, transparent);
+  --tone: var(--warning);
 }
 
 .ip-folio-evidence-card[data-tone="bad"] {
-  background: color-mix(in srgb, var(--danger) 11%, transparent);
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--danger) 80%, transparent);
+  --tone: var(--danger);
 }
 
 .ip-folio-evidence-card[data-tone="good"] {
-  box-shadow: inset 3px 0 0
-    color-mix(in srgb, var(--success-text) 55%, transparent);
+  --tone: var(--success);
 }
 
 .ip-folio-evidence-head {
@@ -505,7 +727,7 @@
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted-foreground);
+  color: color-mix(in srgb, var(--tone) 82%, var(--muted-foreground));
 }
 
 .ip-folio-evidence-icon {
@@ -514,7 +736,9 @@
   flex: 0 0 auto;
   margin-top: 1px;
   color: var(--muted-foreground);
-  transition: color 140ms var(--ease-enter, cubic-bezier(0.22, 1, 0.36, 1));
+  transition:
+    color 140ms var(--ease-enter, cubic-bezier(0.22, 1, 0.36, 1)),
+    transform 160ms var(--ease-enter, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 .ip-folio-evidence-hero {
@@ -590,6 +814,11 @@
   align-items: baseline;
 }
 
+.ip-folio-evidence-rows > div + div {
+  padding-top: 6px;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
+}
+
 .ip-folio-evidence-rows dt {
   font-size: var(--folio-kicker);
   font-weight: 650;
@@ -622,6 +851,8 @@
 .ip-folio-evidence-why {
   display: -webkit-box;
   margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   overflow: hidden;
   font-size: var(--folio-kicker);
   line-height: 1.4;
@@ -648,6 +879,38 @@
 
 .ip-folio-evidence-card:active {
   transform: scale(0.99);
+  transition-duration: 0s;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ip-folio-evidence-card {
+    animation: deck-card-in 340ms
+      var(--ease-enter, cubic-bezier(0.22, 1, 0.36, 1)) both;
+  }
+  .ip-folio-evidence-list > li:nth-child(2) .ip-folio-evidence-card {
+    animation-delay: 40ms;
+  }
+  .ip-folio-evidence-list > li:nth-child(3) .ip-folio-evidence-card {
+    animation-delay: 80ms;
+  }
+  .ip-folio-evidence-list > li:nth-child(4) .ip-folio-evidence-card {
+    animation-delay: 120ms;
+  }
+  .ip-folio-evidence-list > li:nth-child(5) .ip-folio-evidence-card {
+    animation-delay: 160ms;
+  }
+  .ip-folio-evidence-list > li:nth-child(6) .ip-folio-evidence-card {
+    animation-delay: 200ms;
+  }
+  .ip-folio-evidence-list > li:nth-child(7) .ip-folio-evidence-card {
+    animation-delay: 240ms;
+  }
+  .ip-folio-evidence-list > li:nth-child(8) .ip-folio-evidence-card {
+    animation-delay: 280ms;
+  }
+  .ip-folio-evidence-list > li:nth-child(9) .ip-folio-evidence-card {
+    animation-delay: 320ms;
+  }
 }
 
 .ip-folio-scores {
@@ -1058,6 +1321,158 @@ a.ip-folio-score-source:active {
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* --------------------------------------------------------
+   Idle hero: a centred search stage on a blueprint backdrop,
+   matching the home page's observation-deck language.
+   -------------------------------------------------------- */
+.ip-folio-idle .ip-folio-mast {
+  position: relative;
+  gap: 14px;
+  padding: 1.5rem var(--folio-pad-x) 1.25rem;
+}
+
+.ip-folio-idle .ip-folio-mast::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--foreground) 8%, transparent) 1px,
+    transparent 1.4px
+  );
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 75% 90% at 50% 30%,
+    #000 20%,
+    transparent 75%
+  );
+  mask-image: radial-gradient(
+    ellipse 75% 90% at 50% 30%,
+    #000 20%,
+    transparent 75%
+  );
+}
+
+.ip-folio-idle .ip-folio-mast::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 55% 55% at 50% 0%,
+    color-mix(in srgb, var(--primary) 9%, transparent),
+    transparent 72%
+  );
+}
+
+.ip-folio-idle .ip-folio-mast > * {
+  position: relative;
+}
+
+.ip-folio-idle .ip-folio-query {
+  width: 100%;
+  max-width: 560px;
+  margin: 8px auto 0;
+}
+
+.ip-folio-idle .lookup-form-display {
+  height: 52px;
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 4%, transparent),
+    0 14px 30px -22px color-mix(in srgb, var(--primary) 55%, transparent);
+}
+
+.ip-folio-idle .lookup-form-display .lookup-form-lead {
+  padding-left: 16px;
+}
+
+.ip-folio-idle .lookup-form-display .action-button,
+.ip-folio-idle
+  .lookup-form-display
+  [data-slot="input-group-addon"]
+  .action-button,
+.lookup-page .ip-folio-idle .lookup-form-display .action-button {
+  min-width: 64px;
+  height: 40px;
+  margin-right: 4px;
+  border-radius: 10px;
+}
+
+.ip-folio-idle .ip-folio-chips {
+  justify-items: center;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.ip-folio-idle .ip-folio-examples,
+.ip-folio-idle .ip-recent {
+  justify-content: center;
+}
+
+.ip-folio-example,
+.ip-folio .ip-recent button {
+  transition:
+    transform 150ms var(--ease-enter),
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ip-folio-example:hover,
+  .ip-folio .ip-recent button:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+    background: color-mix(in srgb, var(--primary) 7%, transparent);
+  }
+}
+
+.ip-folio-example:active,
+.ip-folio .ip-recent button:active {
+  transform: scale(0.97);
+  transition-duration: 0s;
+}
+
+.ip-folio-idle-features {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 28px;
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  color: var(--muted-foreground);
+  font-size: var(--folio-meta);
+}
+
+.ip-folio-idle-features span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ip-folio-idle-features svg {
+  color: var(--primary);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ip-folio-idle .ip-folio-query {
+    animation: deck-enter 380ms var(--ease-enter) both;
+  }
+  .ip-folio-idle .ip-folio-chips {
+    animation: deck-enter 380ms var(--ease-enter) 70ms both;
+  }
+  .ip-folio-idle-features {
+    animation: deck-enter 380ms var(--ease-enter) 140ms both;
+  }
+}
+
+@media (max-width: 40rem) {
+  .ip-folio-idle .ip-folio-mast {
+    padding-top: 1.25rem;
+  }
 }
 
 .ip-folio-lede {
@@ -1529,22 +1944,16 @@ a.ip-folio-score-source:active {
 
   .ip-folio-evidence-card:hover,
   .ip-folio-evidence-card:focus-visible {
-    background: color-mix(in srgb, var(--primary) 8%, var(--muted));
-  }
-
-  .ip-folio-evidence-card[data-tone="warn"]:hover,
-  .ip-folio-evidence-card[data-tone="warn"]:focus-visible {
-    background: color-mix(in srgb, var(--warning) 16%, transparent);
-  }
-
-  .ip-folio-evidence-card[data-tone="bad"]:hover,
-  .ip-folio-evidence-card[data-tone="bad"]:focus-visible {
-    background: color-mix(in srgb, var(--danger) 16%, transparent);
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--tone) 45%, var(--border));
+    box-shadow: 0 16px 30px -20px
+      color-mix(in srgb, var(--tone) 60%, transparent);
   }
 
   .ip-folio-evidence-card:hover .ip-folio-evidence-icon,
   .ip-folio-evidence-card:focus-visible .ip-folio-evidence-icon {
-    color: var(--foreground);
+    color: var(--tone);
+    transform: translate(2px, -2px);
   }
 
   .ip-folio-checks a:hover,

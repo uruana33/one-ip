@@ -15,6 +15,8 @@
     "build": "pnpm terminal:manifest && tsc -b && vite build",
     "worker:dev": "node scripts/worker-dev.mjs",
     "worker:types": "wrangler types",
+    "quality:collect": "node scripts/ip-quality-collect.mjs",
+    "quality:evaluate": "node scripts/ip-quality-calibration.mjs",
     "test": "wrangler deploy --dry-run --env='' --outdir .worker-test && node --import ./tests/register-paths.mjs --test tests/*.test.mjs",
     "lint": "oxlint",
     "preview": "vite preview",

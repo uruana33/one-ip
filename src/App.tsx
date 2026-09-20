@@ -25,13 +25,11 @@ const HomePage = lazy(() => import("@/views/home"));
 const ClaudePage = lazy(() => import("@/views/claude"));
 const GptPage = lazy(() => import("@/views/gpt"));
 const LookupPage = lazy(() => import("@/views/lookup"));
-const SubdomainsPage = lazy(() => import("@/views/subdomains"));
 const EgressPage = lazy(() => import("@/views/egress"));
 const WebRtcPage = lazy(() => import("@/views/webrtc"));
 const StatusPage = lazy(() => import("@/views/status"));
 const ClaudeStatusPage = lazy(() => import("@/views/claude/status"));
 const GptStatusPage = lazy(() => import("@/views/gpt/status"));
-const ApiUsagePage = lazy(() => import("@/views/api-usage"));
 const PolicyPage = lazy(() => import("@/views/policy"));
 function Redirect({ to }: { to: string }) {
   const { search, hash } = useLocation();
@@ -63,7 +61,6 @@ export function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<HomePage />} />
-        <Route path="docs/api" element={<ApiUsagePage />} />
         <Route path="terms" element={<PolicyPage page="terms" />} />
         <Route path="privacy" element={<PolicyPage page="privacy" />} />
         <Route path="network/ip">
@@ -71,7 +68,6 @@ export function App() {
           <Route path=":ip" element={<LookupPage />} />
         </Route>
         <Route path="network/whois" element={<RedirectLookup view="whois" />} />
-        <Route path="network/subdomains" element={<SubdomainsPage />} />
         <Route path="network/ping" element={<RedirectLookup view="ping" />} />
         <Route path="network" element={<ToolLayout group="network" />}>
           <Route index element={<Navigate replace to="/network/egress" />} />

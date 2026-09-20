@@ -15,17 +15,13 @@
   --surface-0: #050a12;
   --surface-1: rgba(10, 20, 34, 0.78);
   --surface-2: rgba(14, 29, 47, 0.72);
-  --line-strong: rgba(103, 232, 249, 0.24);
+  --line-strong: rgba(148, 163, 184, 0.2);
   --cyan: #67e8f9;
   --lime: #a3e635;
 }
 
 body {
   background-color: var(--surface-0);
-  background-image:
-    linear-gradient(rgba(8, 145, 178, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(8, 145, 178, 0.045) 1px, transparent 1px);
-  background-size: 36px 36px;
 }
 
 .app-container {
@@ -56,9 +52,88 @@ body {
   border: 1px solid var(--line-strong);
   border-radius: 16px;
   background: var(--surface-1);
-  box-shadow:
-    0 18px 40px -28px rgba(2, 132, 199, 0.7),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.45);
+}
+
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  flex-shrink: 0;
+  color: var(--foreground);
+  text-decoration: none;
+  touch-action: manipulation;
+  transition: color 150ms var(--ease-enter);
+}
+.site-brand:hover,
+.site-brand:focus-visible {
+  color: var(--primary);
+}
+.site-brand:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+.site-brand:active {
+  transform: scale(0.98);
+  transition-duration: 0s;
+}
+.site-brand-mark {
+  display: block;
+  height: 22px;
+  width: auto;
+  flex-shrink: 0;
+  filter: drop-shadow(
+    0 3px 7px color-mix(in srgb, var(--primary) 42%, transparent)
+  );
+  transition: transform 180ms var(--ease-enter);
+}
+.site-brand:hover .site-brand-mark,
+.site-brand:focus-visible .site-brand-mark {
+  transform: translateY(-1px);
+}
+.site-brand-name {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-left: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--foreground);
+  transition: color 150ms var(--ease-enter);
+}
+.site-brand-name-ip {
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: linear-gradient(120deg, #2563eb, #06b6d4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.site-brand:hover .site-brand-name,
+.site-brand:focus-visible .site-brand-name {
+  color: var(--primary);
+}
+.app-nav .desktop-site-brand {
+  padding-right: 14px;
+  margin-right: 4px;
+}
+.app-footer .site-brand {
+  min-height: 28px;
+}
+.app-footer .site-brand-mark {
+  height: 17px;
+}
+.app-footer .site-brand-name {
+  margin-left: 7px;
+  font-size: 12px;
+}
+.app-footer .site-brand-name-ip {
+  font-size: 12.5px;
 }
 
 .app-nav [role="tab"] {
@@ -70,123 +145,6 @@ body {
 
 .app-nav [role="tab"]:active {
   transform: scale(0.96);
-}
-
-/* ==== Command bar HUD treatment (desktop): scan line, corner brackets,
-   ambient grid. Mobile keeps the liquid-glass bar. ==== */
-@media (min-width: 48.001rem) {
-  .app-nav {
-    position: relative;
-    border-color: color-mix(in srgb, var(--primary) 24%, var(--line-strong));
-    background-image:
-      linear-gradient(
-        90deg,
-        transparent,
-        color-mix(in srgb, var(--primary) 45%, transparent),
-        transparent
-      ),
-      linear-gradient(
-        color-mix(in srgb, var(--primary) 4%, transparent) 1px,
-        transparent 1px
-      ),
-      linear-gradient(
-        90deg,
-        color-mix(in srgb, var(--primary) 4%, transparent) 1px,
-        transparent 1px
-      );
-    background-size:
-      100% 1px,
-      26px 26px,
-      26px 26px;
-    background-position:
-      top left,
-      center,
-      center;
-    background-repeat: no-repeat, repeat, repeat;
-    box-shadow:
-      0 18px 40px -28px rgba(2, 132, 199, 0.7),
-      inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      0 0 28px -10px color-mix(in srgb, var(--primary) 45%, transparent);
-  }
-
-  /* HUD corner brackets */
-  .app-nav::before {
-    content: "";
-    position: absolute;
-    inset: 5px;
-    pointer-events: none;
-    background:
-      linear-gradient(var(--primary), var(--primary)) top left / 9px 1.5px,
-      linear-gradient(var(--primary), var(--primary)) top left / 1.5px 9px,
-      linear-gradient(var(--primary), var(--primary)) top right / 9px 1.5px,
-      linear-gradient(var(--primary), var(--primary)) top right / 1.5px 9px,
-      linear-gradient(var(--primary), var(--primary)) bottom left / 9px 1.5px,
-      linear-gradient(var(--primary), var(--primary)) bottom left / 1.5px 9px,
-      linear-gradient(var(--primary), var(--primary)) bottom right / 9px 1.5px,
-      linear-gradient(var(--primary), var(--primary)) bottom right / 1.5px 9px;
-    background-repeat: no-repeat;
-    opacity: 0.45;
-  }
-
-  /* Traveling scan highlight along the top edge */
-  .app-nav::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 25%;
-    height: 1px;
-    pointer-events: none;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--primary),
-      transparent
-    );
-    opacity: 0.9;
-    transform: translateX(-100%);
-  }
-
-  .dark .app-nav {
-    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
-    background-image:
-      linear-gradient(
-        90deg,
-        transparent,
-        color-mix(in srgb, var(--primary) 60%, transparent),
-        transparent
-      ),
-      linear-gradient(
-        color-mix(in srgb, var(--primary) 5%, transparent) 1px,
-        transparent 1px
-      ),
-      linear-gradient(
-        90deg,
-        color-mix(in srgb, var(--primary) 5%, transparent) 1px,
-        transparent 1px
-      );
-    box-shadow:
-      0 18px 44px -24px rgba(0, 0, 0, 0.85),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06),
-      0 0 32px -8px color-mix(in srgb, var(--primary) 35%, transparent);
-  }
-  .dark .app-nav::before {
-    opacity: 0.8;
-    filter: drop-shadow(0 0 3px var(--primary));
-  }
-}
-@media (min-width: 48.001rem) and (prefers-reduced-motion: no-preference) {
-  .app-nav::after {
-    animation: app-nav-scan 5.5s linear infinite;
-  }
-}
-@keyframes app-nav-scan {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(400%);
-  }
 }
 
 .tool-subnav {
@@ -221,11 +179,11 @@ body {
 }
 
 .home-page {
-  animation: deck-enter 420ms var(--ease-enter) both;
+  animation: deck-enter 180ms var(--ease-enter) both;
 }
 
 .module-overview {
-  animation: deck-enter 420ms var(--ease-enter) both;
+  animation: deck-enter 180ms var(--ease-enter) both;
 }
 
 .home-page > *:nth-child(2) {
@@ -247,7 +205,7 @@ body {
 .tool-card:hover,
 .cyber-card:hover,
 .cyber-cockpit-card:hover {
-  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
 }
 
 .shortcut-grid {
@@ -257,7 +215,7 @@ body {
 .shortcut-grid > *,
 .tool-card,
 .home-page [data-slot="card"] {
-  animation: deck-card-in 420ms var(--ease-enter) both;
+  animation: deck-card-in 180ms var(--ease-enter) both;
 }
 
 .shortcut-grid > *:nth-child(2) {
@@ -285,8 +243,8 @@ body {
 }
 .app-footer-brand {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
   margin: 0;
   min-height: 32px;
 }
@@ -344,7 +302,7 @@ body {
   .app-container {
     padding: 12px 14px calc(110px + env(safe-area-inset-bottom, 0px));
   }
-  .app-nav::after {
+  .app-nav .desktop-site-brand {
     display: none;
   }
   .tool-subnav {
@@ -370,5 +328,8 @@ body {
   .tool-card,
   .home-page [data-slot="card"] {
     animation: none;
+  }
+  .site-brand:active {
+    transform: none;
   }
 }

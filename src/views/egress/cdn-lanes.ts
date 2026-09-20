@@ -40,6 +40,54 @@ export type CdnForestTree = {
   lanes: CdnLane[];
 };
 
+export type CdnHitState = "success" | "failed" | "pending";
+
+export type CdnHitSummary = {
+  ready: CdnHit[];
+  failed: CdnHit[];
+  pending: CdnHit[];
+  done: CdnHit[];
+  successfulFamilies: string[];
+};
+
+export function cdnHitState(
+  hit: Pick<CdnHit, "node" | "loading" | "error">,
+): CdnHitState {
+  if (hit.loading) return "pending";
+  if (hit.error?.trim()) return "failed";
+  return hit.node ? "success" : "failed";
+}
+
+export function summarizeCdnHits(hits: readonly CdnHit[]): CdnHitSummary {
+  const ready: CdnHit[] = [];
+  const failed: CdnHit[] = [];
+  const pending: CdnHit[] = [];
+  const done: CdnHit[] = [];
+  const successfulFamilies = new Set<string>();
+
+  for (const hit of hits) {
+    const state = cdnHitState(hit);
+    if (state === "success") {
+      ready.push(hit);
+      done.push(hit);
+      successfulFamilies.add(hit.family);
+    } else if (state === "pending") {
+      pending.push(hit);
+    } else {
+      failed.push(hit);
+      done.push(hit);
+    }
+  }
+
+  return {
+    ready,
+    failed,
+    pending,
+    done,
+    successfulFamilies: [...successfulFamilies],
+  };
+}
+
 function clip(value: string, max = 14) {
   const text = value.replace(/\s+/g, " ").trim();
   if (text.length <= max) return text;
@@ -123,8 +171,8 @@ export function groupCdnLanes(hits: readonly CdnHit[]): CdnLane[] {
   }
   const lanes = [...buckets.entries()].map(([key, members]) => {
     const featured = members[0];
-    const ok = members.filter((item) => item.node && !item.loading);
-    const pending = members.some((item) => item.loading);
+    const ok = members.filter((item) => cdnHitState(item) === "success");
+    const pending = members.some((item) => cdnHitState(item) === "pending");
     const kind: EgressLaneKind = ok.length
       ? "exit"
       : pending
@@ -153,9 +201,9 @@ export function groupCdnLanes(hits: readonly CdnHit[]): CdnLane[] {
 }
 
 export function cdnLaneGroups(lane: CdnLane): CdnLaneGroup[] {
-  const colo = lane.members.filter((item) => item.node && !item.loading);
-  const wait = lane.members.filter((item) => item.loading);
-  const miss = lane.members.filter((item) => !item.loading && !item.node);
+  const colo = lane.members.filter((item) => cdnHitState(item) === "success");
+  const wait = lane.members.filter((item) => cdnHitState(item) === "pending");
+  const miss = lane.members.filter((item) => cdnHitState(item) === "failed");
   const groups: CdnLaneGroup[] = [];
   if (colo.length)
     groups.push({ key: "colo", label: "边缘节点", members: colo });
@@ -212,13 +260,13 @@ export function splitCdnForest(
     unique.push({ ...exit, path: dnsHttpPath(exit) });
   }
   const domestic = unique.find((exit) => dnsHttpPath(exit) === "domestic");
-  const overseas = unique.find((exit) => exit.ip !== domestic?.ip);
+  const overseas = unique.find((exit) => dnsHttpPath(exit) === "overseas");
   if (!domestic || !overseas) {
     return [
       {
         key: "all",
         origin: unique[0],
-        hint: unique[0]?.ip ? "HTTP 出口" : "HTTP 出口待读取",
+        hint: unique[0]?.ip ? "CDN 来源分组" : "CDN 来源分组待读取",
         lanes,
       },
     ];
@@ -227,7 +275,7 @@ export function splitCdnForest(
     {
       key: "domestic",
       origin: domestic,
-      hint: "HTTP 出口 · 国内",
+      hint: "CDN 来源分组 · 国内",
       lanes: withPending(
         lanes.filter((lane) => lane.path === "domestic"),
         "domestic",
@@ -237,7 +285,7 @@ export function splitCdnForest(
     {
       key: "overseas",
       origin: overseas,
-      hint: "HTTP 出口 · 海外",
+      hint: "CDN 来源分组 · 海外",
       lanes: withPending(
         lanes.filter((lane) => lane.path === "overseas"),
         "overseas",

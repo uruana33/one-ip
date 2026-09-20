@@ -291,3 +291,167 @@ test("split HTTP exits become two DNS subtrees", () => {
   assert.equal(single.length, 1);
   assert.equal(single[0].key, "all");
 });
+
+test("mixed DNS lanes are sliced by source samples instead of duplicated", () => {
+  const lanes = groupDnsLanes({
+    count: 10,
+    failed: 0,
+    failures: {},
+    results: [
+      {
+        ip: "219.141.176.11",
+        geo: "CN · 北京 · 中国联通",
+        country_code: "CN",
+        samples: 8,
+        sources: ["NetEase", "Fastly"],
+        sourceSamples: { NetEase: 3, Fastly: 5 },
+      },
+    ],
+  });
+  const trees = splitDnsForest(
+    lanes,
+    [
+      { ip: "140.210.32.232", path: "domestic", country_code: "CN" },
+      { ip: "74.120.253.118", path: "overseas", country_code: "US" },
+    ],
+  );
+  const domestic = trees.find((tree) => tree.key === "domestic");
+  const overseas = trees.find((tree) => tree.key === "overseas");
+  assert.equal(domestic?.lanes[0]?.key, "unicom:domestic");
+  assert.equal(overseas?.lanes[0]?.key, "unicom:overseas");
+  assert.equal(domestic?.lanes[0]?.samples, 3);
+  assert.equal(overseas?.lanes[0]?.samples, 5);
+  assert.deepEqual(domestic?.lanes[0]?.members[0]?.sourceSamples, {
+    NetEase: 3,
+  });
+  assert.deepEqual(overseas?.lanes[0]?.members[0]?.sourceSamples, {
+    Fastly: 5,
+  });
+  assert.deepEqual(domestic?.lanes[0]?.sources.map((source) => source.name), [
+    "NetEase",
+  ]);
+  assert.deepEqual(overseas?.lanes[0]?.sources.map((source) => source.name), [
+    "Fastly",
+  ]);
+});
+
+test("sliced DNS lane geo stays attached to its representative member", () => {
+  const lanes = groupDnsLanes({
+    count: 8,
+    failed: 0,
+    failures: {},
+    results: [
+      {
+        ip: "8.8.8.8",
+        geo: "CN · 北京 · Cloudflare",
+        country_code: "CN",
+        samples: 4,
+        sources: ["NetEase", "Fastly"],
+        sourceSamples: { NetEase: 3, Fastly: 1 },
+      },
+      {
+        ip: "1.1.1.1",
+        geo: "United States, San Jose · Cloudflare",
+        country_code: "US",
+        samples: 4,
+        sources: ["NetEase", "Fastly"],
+        sourceSamples: { NetEase: 1, Fastly: 3 },
+      },
+    ],
+  });
+  const domestic = splitDnsForest(
+    lanes,
+    [
+      { ip: "140.210.32.232", path: "domestic", country_code: "CN" },
+      { ip: "74.120.253.118", path: "overseas", country_code: "US" },
+    ],
+  ).find((tree) => tree.key === "domestic");
+  const lane = domestic?.lanes.find((item) => item.kind === "exit");
+
+  assert.equal(lane?.ip, "8.8.8.8");
+  assert.equal(lane?.geo?.ip, "8.8.8.8");
+  assert.equal(lane?.geo?.country_code, "CN");
+  assert.equal(lane?.geo?.country, "北京");
+});
+
+test("two domestic HTTP observations do not fabricate an overseas tree", () => {
+  const lanes = groupDnsLanes({
+    count: 2,
+    failed: 0,
+    failures: {},
+    results: [
+      {
+        ip: "202.106.20.185",
+        geo: "CN · 北京 · 联通",
+        country_code: "CN",
+        samples: 1,
+        sources: ["NetEase"],
+        sourceSamples: { NetEase: 1 },
+      },
+    ],
+  });
+  const trees = splitDnsForest(lanes, [
+    { ip: "140.210.32.232", country_code: "CN" },
+    { ip: "124.126.3.108", country_code: "CN" },
+  ]);
+  assert.deepEqual(trees.map((tree) => tree.key), ["all"]);
+});
+
+test("multiple DNS resolver addresses are not labeled as different HTTP exits", () => {
+  const lanes = groupDnsLanes({
+    count: 4,
+    failed: 0,
+    failures: {},
+    results: [
+      {
+        ip: "8.8.8.8",
+        geo: "US · Google",
+        country_code: "US",
+        samples: 2,
+        sources: ["Fastly"],
+        sourceSamples: { Fastly: 2 },
+      },
+      {
+        ip: "8.8.4.4",
+        geo: "US · Google",
+        country_code: "US",
+        samples: 2,
+        sources: ["Fastly"],
+        sourceSamples: { Fastly: 2 },
+      },
+    ],
+  });
+  assert.equal(lanes.reduce((count, lane) => count + lane.members.length, 0), 2);
+});
+
+test("DNS lane geo and representative IP come from the same member", () => {
+  const lanes = groupDnsLanes({
+    count: 6,
+    failed: 0,
+    failures: {},
+    results: [
+      {
+        ip: "8.8.8.8",
+        geo: "CN · 北京 · Cloudflare",
+        country_code: "CN",
+        samples: 5,
+        sources: ["Fastly"],
+        sourceSamples: { Fastly: 5 },
+      },
+      {
+        ip: "1.1.1.1",
+        geo: "United States, San Jose · Cloudflare",
+        country_code: "US",
+        samples: 1,
+        sources: ["Surfshark"],
+        sourceSamples: { Surfshark: 1 },
+      },
+    ],
+  });
+
+  assert.equal(lanes[0]?.ip, "8.8.8.8");
+  assert.equal(lanes[0]?.geo?.ip, "8.8.8.8");
+  assert.equal(lanes[0]?.geo?.country_code, "CN");
+  assert.equal(lanes[0]?.geo?.country, "北京");
+  assert.equal(lanes[0]?.geo?.city, undefined);
+});

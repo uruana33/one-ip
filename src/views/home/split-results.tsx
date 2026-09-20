@@ -5,10 +5,15 @@ import { IpText, Pending, ActionButton } from "@/components/toolkit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { t } from "@/i18n";
-import type { DiagnosticResult } from "@/lib/diagnostics";
+import {
+  classifyDiagnosticError,
+  diagnosticResult,
+  type DiagnosticResult,
+} from "@/lib/diagnostics";
 import { queryKeys } from "@/lib/query-keys";
 import type { Geo } from "@/lib/types";
 import { EgressFlowBoard } from "@/views/egress/flow-board";
+import { useEgressRun } from "@/views/egress/run-state";
 import {
   EgressExitDescription,
   EgressExitSheet,
@@ -42,7 +47,7 @@ type Row = SourceDefinition & {
 };
 export function SplitResults({ summary = false }: { summary?: boolean }) {
   const sites = summary ? initialSites : allSites;
-  const [round, setRound] = useState(0);
+  const [round, setRound] = useEgressRun("split");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detailIp, setDetailIp] = useState<string | null>(null);
   const runId = `split-${round}`;
@@ -71,12 +76,31 @@ export function SplitResults({ summary = false }: { summary?: boolean }) {
       retry: false,
     })),
   });
+  const diagnostics = queries.map((query, index) => {
+    if (query.isFetching) return undefined;
+    if (!query.isError) return query.data;
+    return diagnosticResult(
+      {
+        runId,
+        sourceId: sites[index].id,
+        runtime: "browser",
+        execution: "client-request",
+        subject: "caller-egress",
+        provenance: "observed",
+        verified: false,
+      },
+      classifyDiagnosticError(query.error),
+      new Date(query.errorUpdatedAt).toISOString(),
+    );
+  });
   const ips = [
     ...new Set(
-      [
-        ...queries.filter((_, index) => visibleSites.has(sites[index].id)),
-      ].flatMap((query) =>
-        query.data?.status === "ok" && query.data.ip ? [query.data.ip] : [],
+      diagnostics.flatMap((result, index) =>
+        visibleSites.has(sites[index].id) &&
+        result?.status === "ok" &&
+        result.ip
+          ? [result.ip]
+          : [],
       ),
     ),
   ];
@@ -89,32 +113,27 @@ export function SplitResults({ summary = false }: { summary?: boolean }) {
     })),
   });
   const geoByIp = new Map(ips.map((ip, index) => [ip, geoQueries[index]]));
-  const rows: Row[] = sites.map((site, i) => ({
-    ...site,
-    visible: visibleSites.has(site.id),
-    diagnostic: queries[i].data,
-    geo:
-      visibleSites.has(site.id) &&
-      queries[i].data?.status === "ok" &&
-      queries[i].data.ip
-        ? {
-            ip: queries[i].data.ip,
-            source: site.name,
-            ...geoByIp.get(queries[i].data.ip)?.data,
-          }
-        : undefined,
-    pending:
-      visibleSites.has(site.id) &&
-      (queries[i].isFetching || queries[i].isPending),
-    geoPending:
-      visibleSites.has(site.id) &&
-      (queries[i].isPending ||
-        Boolean(
-          queries[i].data?.status === "ok" &&
-          queries[i].data.ip &&
-          geoByIp.get(queries[i].data.ip)?.isPending,
-        )),
-  }));
+  const rows: Row[] = sites.map((site, i) => {
+    const diagnostic = diagnostics[i];
+    const ip = diagnostic?.status === "ok" ? diagnostic.ip : undefined;
+    const geoQuery = ip ? geoByIp.get(ip) : undefined;
+    const geo =
+      geoQuery?.isFetching || geoQuery?.isError ? undefined : geoQuery?.data;
+    const visible = visibleSites.has(site.id);
+    return {
+      ...site,
+      visible,
+      diagnostic,
+      geo:
+        visible && ip
+          ? { ...geo, ip, source: geo?.source ?? site.name }
+          : undefined,
+      pending: visible && (queries[i].isFetching || queries[i].isPending),
+      geoPending:
+        visible &&
+        (queries[i].isPending || Boolean(ip && geoQuery?.isFetching)),
+    };
+  });
   rows.sort((a, b) => {
     const aBlocked = a.visible && !a.pending && !a.geo;
     const bBlocked = b.visible && !b.pending && !b.geo;

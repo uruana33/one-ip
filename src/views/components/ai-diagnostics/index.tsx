@@ -94,6 +94,13 @@ export default function AiDiagnostics({ kind }: { kind: "claude" | "gpt" }) {
               <IpText ip={ip} />
             )}
           </div>
+          {exit.isRefetchError && exit.dataUpdatedAt ? (
+            <p className="small muted">
+              {t("上次出口结果 · {0}", [
+                new Date(exit.dataUpdatedAt).toLocaleString(locale),
+              ])}
+            </p>
+          ) : null}
           {exit.isError ? (
             <p className="small muted">
               {t("暂未获取出口，可能受连接或跨域限制。")}

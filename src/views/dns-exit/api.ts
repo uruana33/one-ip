@@ -47,13 +47,33 @@ function isoCountry(value: unknown): string | undefined {
     : undefined;
 }
 
-function parseFastlyEndpoint(
+function normalizedResolverIp(value: unknown) {
+  return typeof value === "string" ? normalizePublicIp(value)?.ip : undefined;
+}
+
+function uniqueResolvers(resolvers: readonly DnsResolver[]) {
+  const found = new Map<string, DnsResolver>();
+  for (const resolver of resolvers) {
+    const previous = found.get(resolver.ip);
+    if (!previous) {
+      found.set(resolver.ip, resolver);
+      continue;
+    }
+    if (!previous.country_code && resolver.country_code)
+      previous.country_code = resolver.country_code;
+    if (resolver.geo.length > previous.geo.length) previous.geo = resolver.geo;
+  }
+  return [...found.values()];
+}
+
+export function parseFastlyEndpoint(
   info: Record<string, unknown> | undefined,
 ): DnsResolver | undefined {
-  if (!info || typeof info.ip !== "string" || !info.ip) return;
+  const ip = normalizedResolverIp(info?.ip);
+  if (!info || !ip) return;
   const country_code = isoCountry(info.cc);
   return {
-    ip: info.ip,
+    ip,
     geo: [info.cc, info.as_name]
       .filter((v) => typeof v === "string")
       .join(" · "),
@@ -74,12 +94,42 @@ const NSTOOL_GLOBALS = [
   "msg",
 ] as const;
 
-function nstoolCountry(value: unknown) {
-  const text = typeof value === "string" ? value : "";
-  if (/香港/.test(text)) return "HK";
-  if (/台湾|台灣/.test(text)) return "TW";
-  if (/澳门|澳門/.test(text)) return "MO";
-  return "CN";
+const NSTOOL_COUNTRIES = [
+  { code: "US", pattern: /^(?:美国|美國|usa?|united states)$/i },
+  { code: "JP", pattern: /^(?:日本|japan|jp)$/i },
+  { code: "KR", pattern: /^(?:韩国|韓國|south korea|korea|kr)$/i },
+  { code: "SG", pattern: /^(?:新加坡|singapore|sg)$/i },
+  {
+    code: "GB",
+    pattern: /^(?:英国|英國|united kingdom|great britain|uk|gb)$/i,
+  },
+  { code: "DE", pattern: /^(?:德国|德國|germany|de)$/i },
+  { code: "FR", pattern: /^(?:法国|法國|france|fr)$/i },
+  { code: "CA", pattern: /^(?:加拿大|canada|ca)$/i },
+  { code: "AU", pattern: /^(?:澳大利亚|澳洲|australia|au)$/i },
+  { code: "RU", pattern: /^(?:俄罗斯|俄羅斯|russia|ru)$/i },
+  { code: "NL", pattern: /^(?:荷兰|荷蘭|netherlands|nl)$/i },
+  { code: "IE", pattern: /^(?:爱尔兰|愛爾蘭|ireland|ie)$/i },
+  { code: "IN", pattern: /^(?:印度|india|in)$/i },
+  { code: "CN", pattern: /^(?:中国|中國|china|cn)$/i },
+] as const;
+
+const MAINLAND_LOCATION =
+  /^(?:中国大陆|中國大陸|大陆|大陸|北京市?|天津市?|上海市?|重庆市?|河北省?|山西省?|辽宁省?|遼寧省?|吉林省?|黑龙江省?|黑龍江省?|江苏省?|江蘇省?|浙江省?|安徽省?|福建省?|江西省?|山东省?|山東省?|河南省?|湖北省?|湖南省?|广东省?|廣東省?|海南省?|四川省?|贵州省?|貴州省?|云南省?|雲南省?|陕西省?|陝西省?|甘肃省?|甘肅省?|青海省?|内蒙古(?:自治区)?|內蒙古(?:自治區)?|广西(?:壮族自治区)?|廣西(?:壯族自治區)?|西藏(?:自治区)?|西藏(?:自治區)?|宁夏(?:回族自治区)?|寧夏(?:回族自治區)?|新疆(?:维吾尔自治区)?|新疆(?:維吾爾自治區)?)$/;
+
+function nstoolCountry(...values: unknown[]) {
+  for (const value of values) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (!text) continue;
+    if (/^(?:香港|香港特别行政区|香港特別行政區)$/i.test(text)) return "HK";
+    if (/^(?:台湾|台灣|台湾省|台灣省)$/i.test(text)) return "TW";
+    if (/^(?:澳门|澳門|澳门特别行政区|澳門特別行政區)$/i.test(text))
+      return "MO";
+    const explicit = NSTOOL_COUNTRIES.find((item) => item.pattern.test(text));
+    if (explicit) return explicit.code;
+    if (MAINLAND_LOCATION.test(text)) return "CN";
+  }
+  return undefined;
 }
 
 function nstoolGeo(province: unknown, city: unknown, isp: unknown) {
@@ -100,12 +150,12 @@ function nstoolEndpoint(
 ): DnsResolver | undefined {
   const normalized = normalizePublicIp(ip);
   if (!normalized) return;
-  const country_code = nstoolCountry(province);
+  const country_code = nstoolCountry(province, city);
   const place = nstoolGeo(province, city, isp);
   return {
     ip: normalized.ip,
-    geo: [`${country_code}`, place].filter(Boolean).join(" · "),
-    country_code,
+    geo: [country_code, place].filter(Boolean).join(" · "),
+    ...(country_code ? { country_code } : {}),
   };
 }
 
@@ -207,8 +257,9 @@ export function parseDnsResponse(source: string, data: unknown): DnsResolver[] {
     );
     return resolver ? [resolver] : [];
   }
-  return Object.entries(record).flatMap(([ip, value]) => {
-    if (!/^[\da-fA-F:.]+$/.test(ip) || !/[.:]/.test(ip)) return [];
+  const resolvers = Object.entries(record).flatMap(([rawIp, value]) => {
+    const ip = normalizedResolverIp(rawIp);
+    if (!ip) return [];
     if (source.startsWith("BrowserLeaks") && Array.isArray(value)) {
       const country_code = isoCountry(value[0]);
       return [
@@ -237,6 +288,7 @@ export function parseDnsResponse(source: string, data: unknown): DnsResolver[] {
     }
     return [];
   });
+  return uniqueResolvers(resolvers);
 }
 
 /** HTTP client address echoed by a DNS probe. Not a resolver. */

@@ -1,11 +1,11 @@
 import { useLayoutEffect, type PropsWithChildren } from "react";
 import { useTheme } from "@/hooks/use-theme";
+import { applyDocumentTheme } from "@/store/theme";
 
 export function ThemeProvider({ children }: PropsWithChildren) {
-  const { resolvedTheme } = useTheme();
+  const { theme } = useTheme();
   useLayoutEffect(() => {
-    document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
-    document.documentElement.style.colorScheme = resolvedTheme;
-  }, [resolvedTheme]);
+    applyDocumentTheme(theme);
+  }, [theme]);
   return children;
 }

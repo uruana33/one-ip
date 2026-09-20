@@ -19,7 +19,7 @@ export function LatencyBadge({
   running: boolean;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const { resolvedTheme } = useTheme();
+  const { theme } = useTheme();
   const latency = result?.median;
   const tone =
     latency == null || latency < 0
@@ -58,7 +58,7 @@ export function LatencyBadge({
       },
     );
     return () => media.revert();
-  }, [tone, resolvedTheme]);
+  }, [tone, theme]);
   return (
     <span
       ref={ref}

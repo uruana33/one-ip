@@ -145,7 +145,7 @@ export function PingResults({
 
           <div className="flex flex-col justify-between p-3 rounded-xl cyber-card bg-card/60">
             <span className="text-[10px] font-mono tracking-wider text-muted-foreground uppercase">
-              FASTEST ({t("最小")})
+              {t("FASTEST (节点平均值最小)")}
             </span>
             <div className="mt-1">
               <span className="text-lg font-bold font-mono text-emerald-500">
@@ -161,21 +161,21 @@ export function PingResults({
 
           <div className="flex flex-col justify-between p-3 rounded-xl cyber-card bg-card/60">
             <span className="text-[10px] font-mono tracking-wider text-muted-foreground uppercase">
-              AVERAGE ({t("平均")})
+              {t("AVERAGE (节点平均值的平均)")}
             </span>
             <div className="mt-1">
               <span className="text-lg font-bold font-mono text-sky-400">
                 {avgLatency != null ? `${avgLatency.toFixed(1)}ms` : "—"}
               </span>
               <div className="text-[11px] text-muted-foreground mt-0.5 font-mono">
-                WEIGHTED
+                {t("按节点均值计算")}
               </div>
             </div>
           </div>
 
           <div className="flex flex-col justify-between p-3 rounded-xl cyber-card bg-card/60">
             <span className="text-[10px] font-mono tracking-wider text-muted-foreground uppercase">
-              SLOWEST ({t("最大")})
+              {t("SLOWEST (节点平均值最大)")}
             </span>
             <div className="mt-1">
               <span className="text-lg font-bold font-mono text-amber-500">

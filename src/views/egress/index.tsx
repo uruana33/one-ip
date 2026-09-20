@@ -37,7 +37,7 @@ export default function EgressPage() {
     <div className="space-y-3">
       <header className="page-header">
         <div className="page-header-text">
-          <h1 className="cyber-gradient-title">{t("出口检测")}</h1>
+          <h1>{t("出口检测")}</h1>
           <p>
             {t(
               "看流量从本机走到哪条公网 IP。颜色相同就是同一条出口；DNS 和 CDN 是另外两条路径。",

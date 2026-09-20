@@ -22,6 +22,19 @@ export interface AiProbeResult {
   description: string;
 }
 
+export function probeCoverage(result: {
+  samples: readonly number[];
+  failures?: number;
+}) {
+  const total = result.samples.length;
+  const successful = result.samples.filter((sample) => sample >= 0).length;
+  return {
+    successful,
+    total,
+    partial: total > 0 && successful > 0 && successful < total,
+  };
+}
+
 export const AI_OVERVIEW_SAMPLE_COUNT = 1;
 export const AI_DETAIL_SAMPLE_COUNT = 3;
 const MAX_SAMPLE_COUNT = 8;

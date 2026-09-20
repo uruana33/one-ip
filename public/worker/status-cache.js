@@ -1,9 +1,13 @@
 export const STATUS_CACHE_TTL_SECONDS = 60;
 export const STATUS_CACHE_CONTROL = `public, max-age=${STATUS_CACHE_TTL_SECONDS}, s-maxage=${STATUS_CACHE_TTL_SECONDS}`;
+export const STATUS_CACHE_VERSION = 2;
 
 function statusCacheKey(request, service) {
   return new Request(
-    new URL(`/api/status/${encodeURIComponent(service.id)}`, request.url),
+    new URL(
+      `/api/status/${encodeURIComponent(service.id)}?v=${STATUS_CACHE_VERSION}`,
+      request.url,
+    ),
     { method: "GET" },
   );
 }
@@ -26,6 +30,14 @@ export function isValidStatusPayload(data, service) {
   if (data.incidents !== undefined && !Array.isArray(data.incidents))
     return false;
   if (data.components !== undefined && !Array.isArray(data.components))
+    return false;
+  if (
+    data.evidence !== undefined &&
+    (!data.evidence ||
+      typeof data.evidence !== "object" ||
+      !["official", "reachability"].includes(data.evidence.kind) ||
+      typeof data.evidence.label !== "string")
+  )
     return false;
   return true;
 }

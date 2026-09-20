@@ -105,7 +105,7 @@ export default function WebRtcPage() {
               {t("个地址")}
             </Badge>
             {query.data?.splitTunnel && (
-              <Badge variant="destructive">{t("检测到 STUN 分流")}</Badge>
+              <Badge variant="destructive">{t("观测到不同 STUN 地址")}</Badge>
             )}
             {query.data?.udpBlocked && (
               <Badge variant="outline">{t("UDP 可能被阻断")}</Badge>

@@ -1,19 +1,9 @@
-import { useState } from "react";
 import { TrustGauge } from "@/components/trust-gauge";
-import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { t } from "@/i18n";
 import { maskedIp } from "@/lib/network";
-import { ArrowUpRight, CircleHelp } from "lucide-react";
+import { ArrowUpRight, ChevronDown } from "lucide-react";
 import { TerminalEgressPanel } from "./terminal-egress-panel";
-import type { QualityAssessment } from "../model/quality";
-import { QUALITY_WEIGHTS } from "../model/quality-score";
+import { qualityScoreNotice, type QualityAssessment } from "../model/quality";
 import type { TerminalEgressReading } from "../model/terminal-egress";
 
 function maskTerminal(text: string, ip: string | undefined, hidden: boolean) {
@@ -21,132 +11,55 @@ function maskTerminal(text: string, ip: string | undefined, hidden: boolean) {
   return text.split(ip).join(maskedIp(ip, true));
 }
 
-function weightPct(weight: number) {
-  return t("×{0}%", [Math.round(weight * 100)]);
-}
-
 function FormulaBody({ assessment }: { assessment: QualityAssessment }) {
-  const { reputation, anonymity, usage, freshness, cap, uncapped } =
+  const { reputation, anonymity, usage, cap, effectiveWeights } =
     assessment.scoreBreakdown;
-  const rows =
-    assessment.score == null
-      ? []
-      : [
-          {
-            label: `R ${t("信誉")}`,
-            weight: weightPct(QUALITY_WEIGHTS.reputation),
-            value: String(Math.round(reputation)),
-          },
-          {
-            label: `A ${t("匿名")}`,
-            weight: weightPct(QUALITY_WEIGHTS.anonymity),
-            value: String(Math.round(anonymity)),
-          },
-          {
-            label: `U ${t("用途")}`,
-            weight: weightPct(QUALITY_WEIGHTS.usage),
-            value: String(Math.round(usage)),
-          },
-          {
-            label: t("加权"),
-            weight: "",
-            value: uncapped.toFixed(1),
-          },
-          {
-            label: `N ${t("网段加分")}`,
-            weight: "",
-            value: freshness > 0 ? `+${freshness}` : "0",
-          },
-          {
-            label: `C ${t("上限")}`,
-            weight: "",
-            value: String(Math.round(cap)),
-          },
-          {
-            label: `S ${t("质量分")}`,
-            weight: "",
-            value: String(assessment.score),
-            result: true,
-          },
-        ];
-
+  const display = (value: number | null) =>
+    value == null ? t("未返回") : String(Math.round(value));
+  const rows = [
+    {
+      label: t("信誉"),
+      value: reputation,
+      weight: effectiveWeights.reputation,
+    },
+    { label: t("匿名"), value: anonymity, weight: effectiveWeights.anonymity },
+    { label: t("用途"), value: usage, weight: effectiveWeights.usage },
+  ];
   return (
     <div className="ip-folio-formula">
-      <p className="ip-folio-formula-eq">
-        S = round(min(0.45R + 0.35A + 0.20U + N, C))
-      </p>
-      {rows.length ? (
-        <dl>
-          {rows.map((row) => (
-            <div key={row.label} data-result={row.result ? "true" : undefined}>
-              <dt>
-                {row.label}
-                {row.weight ? <span>{row.weight}</span> : null}
-              </dt>
-              <dd>{row.value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
+      <p className="ip-folio-formula-eq">S = round(min(Σ(w × D) / Σw, C))</p>
+      <dl>
+        {rows.map((row) => (
+          <div key={row.label}>
+            <dt>
+              {row.label}
+              <span>
+                {row.weight
+                  ? t("×{0}%", [Math.round(row.weight * 100)])
+                  : t("未计入")}
+              </span>
+            </dt>
+            <dd>{display(row.value)}</dd>
+          </div>
+        ))}
+        <div>
+          <dt>{t("风险上限")}</dt>
+          <dd>{cap}</dd>
+        </div>
+        <div data-result="true">
+          <dt>{t("质量分")}</dt>
+          <dd>{display(assessment.score)}</dd>
+        </div>
+      </dl>
       <p className="ip-folio-formula-note">
         {t(
-          "已读取来源按各家公开分档换算后再加权，不是原始分平均。IPQS 与 AbuseIPDB 只外链、不投票。",
-        )}{" "}
-        {t(
-          "较新的住宅或 ISP 网段最多 +8。机房、代理、滥用或登记超过两年不加分。这是注册局网段登记日，不是宽带开户日。",
+          "按已读来源和维度加权，未知项不按无风险处理。缺少部分证据时标为估算。",
         )}
-        {assessment.scoreReference ? ` ${t("来源不足 3 家，这是参考分")}` : ""}
+      </p>
+      <p className="ip-folio-formula-note">
+        {t("登记日期、IPQS 与 AbuseIPDB 不计分。")}
       </p>
     </div>
-  );
-}
-
-function QualityFormulaHelp({ assessment }: { assessment: QualityAssessment }) {
-  const mobile = useIsMobile();
-  const [open, setOpen] = useState(false);
-  const label = t("质量分计算公式");
-  const trigger = (
-    <button
-      type="button"
-      className="ip-help-trigger"
-      aria-label={label}
-      aria-expanded={open}
-      onClick={() => setOpen(true)}
-    >
-      <CircleHelp aria-hidden="true" size={14} strokeWidth={2} />
-    </button>
-  );
-  const body = <FormulaBody assessment={assessment} />;
-
-  if (mobile)
-    return (
-      <>
-        {trigger}
-        <ResponsiveDialog
-          open={open}
-          onOpenChange={setOpen}
-          title={label}
-          description=""
-        >
-          {body}
-        </ResponsiveDialog>
-      </>
-    );
-
-  return (
-    <TooltipProvider delayDuration={120}>
-      <Tooltip open={open} onOpenChange={setOpen}>
-        <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-        <TooltipContent
-          side="bottom"
-          align="start"
-          sideOffset={8}
-          className="ip-folio-formula-tip max-w-[min(22rem,calc(100vw-1.5rem))] flex-col items-stretch px-3.5 py-3"
-        >
-          {body}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
   );
 }
 
@@ -157,49 +70,134 @@ function QualityConclusion({
   assessment: QualityAssessment;
   hidden: boolean;
 }) {
-  const meta = [
-    assessment.scoreReference
-      ? t("来源不足 3 家，这是参考分")
-      : t(
-          "依据 {0} 个已读取来源，按信誉 / 匿名 / 用途计分，较新住宅网段另有加分",
-          [assessment.sourcesReady],
-        ),
-    t("IPQS / AbuseIPDB 未计入"),
-    assessment.pending ? t("正在核对其它来源") : "",
-    assessment.runtime ? t("终端出口来自本机粘贴，未自动执行") : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
+  const applicable = assessment.sources.filter(
+    (source) =>
+      source.status !== "outbound" && source.status !== "not-applicable",
+  ).length;
+  const estimate = assessment.scoreStatus === "provisional";
+  const details = [
+    ...new Set(
+      maskTerminal(assessment.summary, assessment.terminalIp, hidden).split(
+        " · ",
+      ),
+    ),
+  ];
   return (
     <section
       className="ip-folio-quality"
       data-tone={assessment.band}
       aria-label={t("质量结论")}
     >
-      <p className="ip-folio-kicker">
-        <span>{t("质量结论")}</span>
-        <QualityFormulaHelp assessment={assessment} />
-      </p>
+      <div className="ip-folio-quality-heading">
+        <p className="ip-folio-kicker">{t("质量评估")}</p>
+        {estimate ? (
+          <span
+            className="ip-folio-estimate"
+            title={qualityScoreNotice(assessment)}
+          >
+            {t("估算")}
+          </span>
+        ) : null}
+      </div>
       <div className="ip-folio-quality-hero">
-        <TrustGauge
-          score={assessment.score}
-          size="lg"
-          caption={t("质量分")}
-          hint={t(
-            "0–100，越高越好。已读取来源按同一套公式计分，不是原始分平均。",
-          )}
-        />
+        {assessment.score != null ? (
+          <TrustGauge
+            score={assessment.score}
+            size="lg"
+            caption={t("质量分")}
+            verdict={assessment.bandLabel}
+          />
+        ) : (
+          <div className="ip-folio-quality-wait">
+            {assessment.pending ? t("读取中…") : t("暂无读数")}
+          </div>
+        )}
         <div className="ip-folio-quality-copy">
           <strong className="ip-folio-quality-kind">
-            {assessment.kindLabel}
+            {assessment.headline}
           </strong>
-          <p className="ip-folio-quality-summary">
-            {maskTerminal(assessment.summary, assessment.terminalIp, hidden)}
-          </p>
-          <p className="ip-folio-quality-meta">{meta}</p>
+          <p className="ip-folio-quality-summary">{assessment.shortSummary}</p>
+          <ul className="ip-folio-quality-tags" aria-label={t("关键判断")}>
+            {assessment.tags.map((tag) => (
+              <li key={tag.label} data-tone={tag.tone}>
+                {tag.label}
+              </li>
+            ))}
+          </ul>
         </div>
+        {assessment.keyEvidence.rows.length ? (
+          <div className="ip-folio-quality-proof">
+            <p className="ip-folio-proof-title">
+              {assessment.keyEvidence.title}
+            </p>
+            <dl>
+              {assessment.keyEvidence.rows.map((row) => (
+                <div key={row.source}>
+                  <dt>{row.source}</dt>
+                  <dd data-tone={row.tone}>{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null}
       </div>
+      <details className="ip-folio-quality-details">
+        <summary>
+          <span>
+            {t("已读 {0}/{1} 个来源", [assessment.sourcesReady, applicable])}
+            {assessment.pending ? ` · ${t("更新中")}` : ""}
+          </span>
+          <span className="ip-folio-details-action">
+            {t("查看依据")}
+            <ChevronDown size={14} aria-hidden="true" />
+          </span>
+        </summary>
+        <div className="ip-folio-quality-expanded">
+          <div className="ip-folio-reasons">
+            <h3>{t("来源说明")}</h3>
+            <ul>
+              {details.map((detail, index) => (
+                <li key={index}>{detail}</li>
+              ))}
+            </ul>
+            <p>{qualityScoreNotice(assessment)}</p>
+            <p>
+              {t("有效来源：信誉 {0} · 匿名 {1} · 用途 {2}", [
+                assessment.evidence.reputation.length,
+                assessment.evidence.anonymity.length,
+                assessment.evidence.usage.length,
+              ])}
+            </p>
+          </div>
+          <div className="ip-folio-calculation">
+            <h3>{t("计算方式")}</h3>
+            <FormulaBody assessment={assessment} />
+          </div>
+          <div className="ip-folio-quality-footnote">
+            {assessment.publicService ? (
+              <p>
+                <a
+                  href={assessment.publicService.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t("官方用途记录：{0}", [assessment.publicService.label])}
+                </a>
+                {" · "}
+                {assessment.publicService.verifiedAt.slice(0, 10)}
+              </p>
+            ) : null}
+            {assessment.checkedAt ? (
+              <p>
+                {t("来源读取于 {0}", [
+                  new Date(assessment.checkedAt).toLocaleString(),
+                ])}
+              </p>
+            ) : null}
+            <p>{t("分数用于比较已读风险信号，不代表平台通过率或账号安全。")}</p>
+          </div>
+        </div>
+      </details>
     </section>
   );
 }

@@ -11,10 +11,16 @@ function reading(id, source, metric, value, hint = "", tone = "neutral") {
     hint,
     tone,
     href: `https://example.test/${source}`,
+    flags:
+      value === "No" && (metric === "privacy" || metric === "proxy")
+        ? source === "ipapi"
+          ? { anonymous: false }
+          : { vpn: false, proxy: false, tor: false }
+        : undefined,
   };
 }
 
-test("124.126.3.108 scores 87 from the nine-source formula, not disputed on IPPure 73", () => {
+test("124.126.3.108 keeps source scores but exposes residential versus institutional use", () => {
   const result = assessQuality(
     {
       ip: "124.126.3.108",
@@ -56,12 +62,17 @@ test("124.126.3.108 scores 87 from the nine-source formula, not disputed on IPPu
     },
   );
 
-  assert.equal(result.score, 87);
+  assert.ok(result.score != null);
+  assert.equal(result.scoreBreakdown.usage, 72);
+  assert.match(result.summary, /用途存在分歧/);
   assert.equal(result.band, "good");
   assert.equal(result.bandLabel, "比较好");
-  assert.equal(result.kind, "residential");
+  assert.equal(result.kind, "disputed");
   assert.equal(result.scoreReference, false);
-  assert.equal(result.sources.filter((item) => item.status === "outbound").length, 2);
+  assert.equal(
+    result.sources.filter((item) => item.status === "outbound").length,
+    2,
+  );
   const ipqs = result.sources.find((item) => item.id === "ipqs");
   const abuse = result.sources.find((item) => item.id === "abuseipdb");
   assert.equal(ipqs?.status, "outbound");
@@ -81,7 +92,12 @@ test("Coffee abuser rates below 1 do not count as a 0–100 abuse score", () => 
     is_tor: false,
     is_abuser: false,
   });
-  assert.ok(result.score != null && result.score >= 80);
+  assert.ok(result.score != null);
+  assert.equal(result.scoreStatus, "provisional");
+  assert.equal(
+    result.sources.find((source) => source.id === "coffee").headline.value,
+    "97",
+  );
   assert.notEqual(result.scoreBreakdown.cap, 20);
 });
 
@@ -98,7 +114,9 @@ test("public-service datacenter is not capped at 60", () => {
   });
   assert.equal(result.kind, "public-service");
   assert.equal(result.scoreBreakdown.cap, 100);
-  assert.equal(result.score, 79);
+  assert.ok(result.score != null);
+  assert.equal(result.scoreStatus, "provisional");
+  assert.equal(result.scoreReference, true);
 });
 
 test("IP-API untyped anonymity cannot trigger the VPN cap", () => {
@@ -159,7 +177,7 @@ function residentialIntel(ip) {
   };
 }
 
-test("a recently registered residential prefix adds at most 8 before the cap", () => {
+test("registration age is context only for residential addresses", () => {
   const coffee = {
     ip: "203.0.113.80",
     trust_score: 97,
@@ -184,12 +202,10 @@ test("a recently registered residential prefix adds at most 8 before the cap", (
     { ...residentialIntel(coffee.ip), prefix: OLD_PREFIX },
     { now: NOW },
   );
-  assert.equal(base.scoreBreakdown.freshness, 0);
-  assert.equal(fresh.scoreBreakdown.freshness, 8);
-  assert.equal(old.scoreBreakdown.freshness, 0);
-  assert.equal(fresh.score, (base.score ?? 0) + 8);
+  assert.equal(fresh.score, base.score);
   assert.equal(old.score, base.score);
-  assert.equal(fresh.freshness?.value.includes("+8"), true);
+  assert.doesNotMatch(fresh.freshness?.value ?? "", /\+/);
+  assert.match(fresh.freshness?.hint ?? "", /不参与信誉评分/);
 });
 
 test("a recently registered datacenter prefix does not raise the score", () => {
@@ -212,7 +228,9 @@ test("a recently registered datacenter prefix does not raise the score", () => {
     },
     { now: NOW },
   );
-  assert.equal(result.score, 79);
-  assert.equal(result.scoreBreakdown.freshness, 0);
+  assert.ok(result.score != null);
+  assert.equal(result.scoreStatus, "provisional");
+  assert.equal(result.scoreReference, true);
+  assert.match(result.freshness?.hint ?? "", /不参与信誉评分/);
   assert.match(result.freshness?.value ?? "", /较新|Newer/);
 });

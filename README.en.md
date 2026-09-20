@@ -18,27 +18,26 @@ A toolbox for IP lookups, network diagnostics and AI service status.
 
 [中文](README.md) · **English**
 
-[Live demo](https://ip.huzhihui.com/) · [GitHub](https://github.com/zhihui-hu/one-ip)
+[GitHub](https://github.com/uruana33/one-ip)
 
 Click the button below for one-click deployment to Cloudflare.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fzhihui-hu%2Fone-ip)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Furuana33%2Fone-ip)
 
 ## Terminal and API
 
 After deploying this version, use `GET /api/ip/health` without an API key:
 
 ```bash
-# Current request's public egress IP, readable terminal output
-curl -fsS 'https://ip.huzhihui.com/api/ip/health?format=text'
+# Explicit public IPv4, readable terminal output (local Worker requires ip)
+curl -fsS 'http://127.0.0.1:8787/api/ip/health?ip=1.1.1.1&format=text'
 # JSON (default)
-curl -fsS 'https://ip.huzhihui.com/api/ip/health'
-# Explicit public IPv4 or IPv6
-curl -fsS 'https://ip.huzhihui.com/api/ip/health?ip=1.1.1.1'
-curl -fsS 'https://ip.huzhihui.com/api/ip/health?ip=2606:4700:4700::1111&format=text'
+curl -fsS 'http://127.0.0.1:8787/api/ip/health?ip=1.1.1.1'
+# IPv6
+curl -fsS 'http://127.0.0.1:8787/api/ip/health?ip=2606:4700:4700::1111&format=text'
 ```
 
-Replace the domain for your deployment. Local development uses `http://127.0.0.1:8787` and requires `ip`. Without `ip`, the API uses the caller address identified by Cloudflare; a proxy changes that egress address.
+Replace the hostname with your domain after deploying. Production can omit `ip`; the API then uses the caller address identified by Cloudflare. A proxy changes that egress address.
 
 Returns `ip`, `checked_at`, `score`, `status`, location, ISP, ASN and `flags` (residential, datacenter, mobile, VPN, proxy, Tor, crawler, abuser). The trust score ranges from 0 to 100, higher is better. Matching the UI, 75–100 is `good`, 45–74 is `moderate`, below 45 is `poor`. Missing or invalid scores yield `score: null` and `status: "unknown"`; missing flags are `null`, not `false`.
 
@@ -46,7 +45,7 @@ Returns `ip`, `checked_at`, `score`, `status`, location, ISP, ASN and `flags` (r
 
 ## Deploy to Cloudflare
 
-1. [Fork this project](https://github.com/zhihui-hu/one-ip/fork) into your GitHub account.
+1. [Fork this project](https://github.com/uruana33/one-ip/fork) into your GitHub account.
 2. Open the [Cloudflare dashboard](https://dash.cloudflare.com/), go to **Workers & Pages**, create a Worker and choose to import a Git repository.
 3. Connect GitHub, select your `one-ip` fork and set the production branch to `main`.
 4. Set the build command to `pnpm build` and the deploy command to `pnpm deploy`. Use Node.js 24 and pnpm 10.32.1. Keep the default root directory.
@@ -56,7 +55,7 @@ The project uses **Cloudflare Workers with Static Assets**. The `/api/*` routes 
 
 For map access from mainland China, configure `TIANDITU_TOKEN` under Worker → Settings → Variables and Secrets (or run `pnpm exec wrangler secret put TIANDITU_TOKEN`). Maps prefer Tianditu and fall back to OpenStreetMap when unavailable; without the token, OpenStreetMap remains the default.
 
-Workers Builds builds and deploys when `main` receives a commit. The button above points to the original repository. To preserve the fork relationship and update workflow, follow the steps to import your fork.
+Workers Builds builds and deploys when `main` receives a commit. The button above points to this repository. Follow the steps to import your fork for your own deployment.
 
 ## Features
 
@@ -88,24 +87,9 @@ IP addresses, detailed locations and ISP / ASN information have been redacted. V
   </tr>
 </table>
 
-## Update your fork
+## Sync a fork
 
-Click **Sync fork → Update branch** on your GitHub repository page. Review differences if you have code changes, and resolve merge conflicts.
-
-For scheduled updates, enable `Sync upstream`:
-
-1. Enable workflows in your fork's Actions tab.
-2. Under Settings → Secrets and variables → Actions → **Variables**, add `AUTO_SYNC_UPSTREAM=true`.
-3. The workflow checks for updates at 04:23 UTC each day. You can run it from the Actions page.
-
-The workflow supports forks created from `zhihui-hu/one-ip` and requires no personal access token. It uses GitHub's `merge-upstream` API, stops on conflicts and preserves your commits. Use GitHub's Sync fork if you want to review updates.
-
-- **Workers Builds:** connect your fork's production branch and check deployment records for synchronized commits in Cloudflare's build history.
-- **GitHub Actions deployment:** the sync workflow triggers deployment when it merges updates. Pushes made with `GITHUB_TOKEN` do not trigger ordinary `push` workflows.
-- If branch protection blocks a merge, use a PR.
-- Enable scheduled workflows in your fork. GitHub may disable schedules after 60 days of inactivity in a public repository; use the Actions page to enable them.
-
-References: [Syncing a fork](https://docs.github.com/en/pull-requests/how-tos/work-with-forks/syncing-a-fork), [GITHUB_TOKEN triggering behavior](https://docs.github.com/en/actions/concepts/security/github_token), [Workflow disabling rules](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows).
+If you forked this repository, click **Sync fork → Update branch** on your GitHub repository page. Review differences if you have local changes, and resolve merge conflicts with a merge.
 
 ## GitHub Actions deployment (optional)
 

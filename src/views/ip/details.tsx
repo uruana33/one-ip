@@ -85,16 +85,18 @@ export function IpDetails({
     ? "neutral"
     : place.split
       ? "warn"
-      : place.located
+      : place.located >= 2
         ? "good"
         : "neutral";
   const placeChip = place.pending
     ? t("正在核对")
     : place.split
       ? t("存在分歧")
-      : place.located
-        ? t("多数一致")
-        : t("未知");
+      : place.located >= 2
+        ? t("已读来源一致")
+        : place.located === 1
+          ? t("单一来源")
+          : t("未知");
 
   return (
     <article className="ip-folio">
@@ -256,7 +258,7 @@ export function IpDetails({
 
       <FolioFold
         title={t("使用场景")}
-        hint={t("5 星制 · IP 条件参考，点击查看依据")}
+        hint={t("当前浏览器公开端点访问参考；不代表查询 IP 能力")}
       >
         <ScenarioPanel ip={d.ip} inbound={inbound} />
       </FolioFold>

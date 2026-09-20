@@ -61,7 +61,13 @@ test("IP2Location HTML keeps usage, proxy type and fraud on their own polarities
     items.find((item) => item.metric === "proxy")?.value ?? "",
     /VPN/,
   );
-  assert.equal(items.find((item) => item.metric === "proxy")?.hint, "WisdomISP");
+  assert.deepEqual(items.find((item) => item.metric === "proxy")?.flags, {
+    vpn: true,
+  });
+  assert.equal(
+    items.find((item) => item.metric === "proxy")?.hint,
+    "WisdomISP",
+  );
   assert.match(
     items.find((item) => item.metric === "usage")?.value ?? "",
     /ISP/,
@@ -77,7 +83,24 @@ test("IP2Location HTML keeps usage, proxy type and fraud on their own polarities
     "1.1.1.1",
   );
   assert.equal(clean.find((item) => item.metric === "fraud")?.value, "0");
-  assert.equal(clean.find((item) => item.metric === "proxy"), undefined);
+  assert.equal(
+    clean.find((item) => item.metric === "proxy"),
+    undefined,
+  );
+  assert.deepEqual(clean.find((item) => item.metric === "usage")?.flags, {
+    hosting: true,
+  });
+  const noProxy = parseIp2Location(
+    `1.1.1.1 <label>Proxy Type</label><p class="ip-result">No</p>`,
+    "1.1.1.1",
+  );
+  assert.deepEqual(noProxy.find((item) => item.metric === "proxy")?.flags, {
+    vpn: false,
+    proxy: false,
+    tor: false,
+    residentialProxy: false,
+    hosting: false,
+  });
 });
 
 test("IP2Location / IPinfo / IP-API / proxycheck expose a comparable city", () => {
@@ -147,18 +170,66 @@ test("IP-API JSON keeps proxy and hosting as separate votes, never a blended sco
     flagged.find((item) => item.metric === "proxy")?.hint,
     "Comcast Cable Communications, LLC",
   );
-  assert.equal(flagged.find((item) => item.metric === "usage"), undefined);
+  assert.equal(
+    flagged.find((item) => item.metric === "usage"),
+    undefined,
+  );
   const hosted = parseIpApi(
-    { status: "success", query: IP, proxy: false, hosting: true, mobile: false },
+    {
+      status: "success",
+      query: IP,
+      proxy: false,
+      hosting: true,
+      mobile: false,
+    },
     IP,
   );
   assert.equal(hosted.find((item) => item.metric === "proxy")?.value, "No");
-  assert.equal(hosted.find((item) => item.metric === "usage")?.value, "Data Center");
+  assert.equal(
+    hosted.find((item) => item.metric === "usage")?.value,
+    "Data Center",
+  );
+  assert.deepEqual(hosted.find((item) => item.metric === "proxy")?.flags, {
+    anonymous: false,
+    hosting: true,
+  });
+  assert.deepEqual(hosted.find((item) => item.metric === "usage")?.flags, {
+    hosting: true,
+  });
   assert.equal(
     parseIpApi({ status: "success", query: "1.1.1.1", proxy: true }, IP).length,
     0,
   );
-  assert.equal(parseIpApi({ status: "fail", message: "invalid query" }, IP).length, 0);
+  assert.equal(
+    parseIpApi({ status: "fail", message: "invalid query" }, IP).length,
+    0,
+  );
+});
+
+test("IP-API proxy readings carry typed evidence without inventing subtypes", () => {
+  const [proxy] = parseIpApi(
+    {
+      status: "success",
+      query: IP,
+      isp: "Example ISP",
+      proxy: true,
+    },
+    IP,
+  );
+  assert.equal(proxy.value, "Anonymous");
+  assert.deepEqual(proxy.flags, { anonymous: true });
+
+  const [clean] = parseIpApi(
+    {
+      status: "success",
+      query: IP,
+      isp: "Example ISP",
+      proxy: false,
+    },
+    IP,
+  );
+  assert.equal(clean.value, "No");
+  assert.deepEqual(clean.flags, { anonymous: false });
 });
 
 test("proxycheck.io keeps VPN, proxy, usage and risk as separate votes", () => {
@@ -180,7 +251,10 @@ test("proxycheck.io keeps VPN, proxy, usage and risk as separate votes", () => {
   );
   assert.equal(clean.find((item) => item.metric === "proxy")?.value, "No");
   assert.equal(clean.find((item) => item.metric === "proxy")?.tone, "good");
-  assert.equal(clean.find((item) => item.metric === "usage")?.value, "Residential");
+  assert.equal(
+    clean.find((item) => item.metric === "usage")?.value,
+    "Residential",
+  );
   assert.equal(clean.find((item) => item.metric === "risk")?.value, "0");
   const flagged = parseProxyCheck(
     {
@@ -203,27 +277,82 @@ test("proxycheck.io keeps VPN, proxy, usage and risk as separate votes", () => {
     "VPN · Proxy · Tor",
   );
   assert.equal(flagged.find((item) => item.metric === "proxy")?.tone, "bad");
-  assert.equal(flagged.find((item) => item.metric === "usage")?.value, "Data Center");
+  assert.equal(
+    flagged.find((item) => item.metric === "usage")?.value,
+    "Data Center",
+  );
   assert.equal(flagged.find((item) => item.metric === "risk")?.value, "80");
   assert.equal(
-    parseProxyCheck({ status: "ok", "1.1.1.1": { detections: { vpn: true } } }, IP)
-      .length,
+    parseProxyCheck(
+      { status: "ok", "1.1.1.1": { detections: { vpn: true } } },
+      IP,
+    ).length,
     0,
   );
-  assert.equal(parseProxyCheck({ status: "denied", message: "limit" }, IP).length, 0);
+  assert.equal(
+    parseProxyCheck({ status: "denied", message: "limit" }, IP).length,
+    0,
+  );
+});
+
+test("proxycheck.io keeps missing detection fields unknown", () => {
+  const missing = parseProxyCheck(
+    { status: "ok", [IP]: { detections: {} } },
+    IP,
+  );
+  assert.equal(
+    missing.find((item) => item.metric === "proxy"),
+    undefined,
+  );
+
+  const partial = parseProxyCheck(
+    { status: "ok", [IP]: { detections: { vpn: false } } },
+    IP,
+  );
+  const proxy = partial.find((item) => item.metric === "proxy");
+  assert.equal(proxy?.value, "No");
+  assert.deepEqual(proxy?.flags, { vpn: false });
 });
 
 test("IPinfo JSON-LD privacy flags stay attached to the queried address", () => {
   const [privacy] = parseIpinfo(IPINFO, IP);
   assert.equal(privacy.value, "No");
   assert.equal(privacy.tone, "good");
+  assert.deepEqual(privacy.flags, {
+    vpn: false,
+    proxy: false,
+    tor: false,
+    hosting: false,
+  });
   assert.equal(parseIpinfo(IPINFO, "1.1.1.1").length, 0);
+});
+
+test("IPinfo does not turn absent privacy fields into negative evidence", () => {
+  const geoOnly = `<html>{"@type":"PropertyValue","name":"IP Address","value":"${IP}"}
+{"@type":"PropertyValue","name":"City","value":"New York City"}</html>`;
+  assert.equal(parseIpinfo(geoOnly, IP).length, 0);
+
+  const vpnOnly = `<html>{"@type":"PropertyValue","name":"IP Address","value":"${IP}"}
+{"@type":"PropertyValue","name":"VPN","value":"No"}</html>`;
+  const [privacy] = parseIpinfo(vpnOnly, IP);
+  assert.equal(privacy.value, "No");
+  assert.deepEqual(privacy.flags, { vpn: false });
 });
 
 test("Scamalytics text reports fraud and VPN separately", () => {
   const items = parseScamalytics(SCAM, IP);
   assert.equal(items.find((item) => item.metric === "fraud")?.value, "0");
-  assert.equal(items.find((item) => item.metric === "proxy")?.value, "VPN");
+  const proxy = items.find((item) => item.metric === "proxy");
+  assert.equal(proxy?.value, "VPN");
+  assert.deepEqual(proxy?.flags, { vpn: true });
+});
+
+test("Scamalytics keeps missing proxy labels unknown", () => {
+  const items = parseScamalytics(`${IP} Fraud Risk\nFraud Score: 0`, IP);
+  assert.equal(
+    items.find((item) => item.metric === "proxy"),
+    undefined,
+  );
 });
 
 test("IPPure 纯净度 is 100 minus their honeypot risk, never Coffee trust", () => {
@@ -244,7 +373,10 @@ test("IPPure 纯净度 is 100 minus their honeypot risk, never Coffee trust", ()
     parseIppureRisk({ ok: true, data: { risk_score: 50 } }, IP)[0].tone,
     "bad",
   );
-  assert.equal(parseIppureRisk({ ok: false, data: { risk_score: 1 } }, IP).length, 0);
+  assert.equal(
+    parseIppureRisk({ ok: false, data: { risk_score: 1 } }, IP).length,
+    0,
+  );
   assert.equal(parseIppureRisk({ ok: true, data: {} }, IP).length, 0);
 });
 
@@ -293,7 +425,8 @@ test("ipCross gathers whatever pages return and leaves the rest unavailable", as
           },
         },
       });
-    if (href.includes("scamalytics")) return new Response("blocked", { status: 403 });
+    if (href.includes("scamalytics"))
+      return new Response("blocked", { status: 403 });
     if (href.includes("rdap.org/ip/"))
       return Response.json({
         handle: "NET-74-120-252-0-3",
@@ -301,8 +434,14 @@ test("ipCross gathers whatever pages return and leaves the rest unavailable", as
         endAddress: "74.120.255.255",
         cidr0_cidrs: [{ v4prefix: "74.120.252.0", length: 22 }],
         events: [
-          { eventAction: "last changed", eventDate: "2026-08-06T02:36:23-04:00" },
-          { eventAction: "registration", eventDate: "2026-08-06T02:36:23-04:00" },
+          {
+            eventAction: "last changed",
+            eventDate: "2026-08-06T02:36:23-04:00",
+          },
+          {
+            eventAction: "registration",
+            eventDate: "2026-08-06T02:36:23-04:00",
+          },
         ],
       });
     if (href.includes("api.123169.xyz/api/info/ip-risk/")) {
@@ -311,14 +450,21 @@ test("ipCross gathers whatever pages return and leaves the rest unavailable", as
         return Response.json({ ok: true, data: { risk_score: 40 } });
       }
       return new Response(JSON.stringify({ ok: false }), {
-        headers: { "x-k": "test-key", "x-t": "1000", "content-type": "application/json" },
+        headers: {
+          "x-k": "test-key",
+          "x-t": "1000",
+          "content-type": "application/json",
+        },
       });
     }
     throw new Error(href);
   };
   try {
-    const payload = await (await ipCross(IP, "https://tools.example.com")).json();
+    const payload = await (
+      await ipCross(IP, "https://tools.example.com")
+    ).json();
     assert.equal(payload.ip, IP);
+    assert.match(payload.checkedAt, /^\d{4}-\d{2}-\d{2}T/);
     assert.ok(payload.readings.some((item) => item.id === "ippure-purity"));
     assert.equal(
       payload.readings.find((item) => item.id === "ippure-purity")?.value,
@@ -336,11 +482,17 @@ test("ipCross gathers whatever pages return and leaves the rest unavailable", as
       payload.readings.find((item) => item.id === "proxycheck-proxy")?.value,
       "No",
     );
-    assert.equal(payload.places.length, 4);
     assert.deepEqual(
-      payload.places.map((item) => item.source).sort(),
-      ["ip2location", "ipapi", "ipinfo", "proxycheck"],
+      payload.readings.find((item) => item.id === "proxycheck-proxy")?.flags,
+      { vpn: false, proxy: false, tor: false, hosting: false },
     );
+    assert.equal(payload.places.length, 4);
+    assert.deepEqual(payload.places.map((item) => item.source).sort(), [
+      "ip2location",
+      "ipapi",
+      "ipinfo",
+      "proxycheck",
+    ]);
     assert.ok(payload.places.every((item) => /new york/i.test(item.city)));
     assert.ok(payload.unavailable.includes("scamalytics"));
     assert.ok(!payload.unavailable.includes("ippure"));
@@ -370,7 +522,9 @@ test("RDAP prefix age uses registration, not last changed", () => {
   assert.equal(prefix?.cidr, "8.8.8.0/24");
   assert.equal(
     prefixFromRdap({
-      events: [{ eventAction: "last changed", eventDate: "2026-01-01T00:00:00Z" }],
+      events: [
+        { eventAction: "last changed", eventDate: "2026-01-01T00:00:00Z" },
+      ],
     }),
     null,
   );

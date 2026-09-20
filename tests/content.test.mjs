@@ -22,6 +22,10 @@ test("removed DNS and news routes have no page source or navigation entries", ()
     "src/views/link",
     "src/components/connectivity.tsx",
     "src/views/browser",
+    "src/views/subdomains",
+    "public/worker/subdomains.js",
+    "src/views/api-usage.tsx",
+    "src/views/api-code-block.tsx",
     "vendor/browser-diagnostics",
     "public/browser-diagnostics.js",
   ])
@@ -29,8 +33,9 @@ test("removed DNS and news routes have no page source or navigation entries", ()
   const app = readFileSync("src/App.tsx", "utf8");
   assert.doesNotMatch(
     app,
-    /DnsPage|NewsPage|ArticlePage|articlePaths|LinkPage|BrowserPage|ChallengesPage/,
+    /DnsPage|NewsPage|ArticlePage|articlePaths|LinkPage|BrowserPage|ChallengesPage|SubdomainsPage|ApiUsagePage/,
   );
+  assert.doesNotMatch(app, /docs\/api|path="docs"/);
   assert.ok(navigationRoutes.every((route) => !/dns|news/.test(route.value)));
   assert.ok(
     !toolGroups.network.some((route) => route.path === "/network/connectivity"),
@@ -92,7 +97,7 @@ test("production assets exclude deleted content and backend source", () => {
 test("address lookup is a header tool; WHOIS and ping still land there", () => {
   assert.deepEqual(
     navigationRoutes.map((item) => item.value),
-    ["/", "/network/ip", "/network/subdomains", "/ai/", "/status/", "/network/egress"],
+    ["/", "/network/ip", "/ai/", "/status/", "/network/egress"],
   );
   assert.deepEqual(
     toolGroups.network.map((item) => item.path),
@@ -102,14 +107,11 @@ test("address lookup is a header tool; WHOIS and ping still land there", () => {
   for (const path of ["/network/ping/", "/network/connectivity/"])
     assert.equal(activeNavigationRoute(path), "/network/ip");
   assert.equal(activeNavigationRoute("/network/whois/"), "/network/ip");
-  assert.equal(
-    activeNavigationRoute("/network/subdomains/"),
-    "/network/subdomains",
-  );
+  assert.equal(activeNavigationRoute("/network/subdomains/"), "/network/ip");
   assert.equal(activeNavigationRoute("/network/egress/"), "/network/egress");
   assert.equal(activeNavigationRoute("/ai/claude/"), "/ai/");
   assert.equal(activeNavigationRoute("/webrtc"), "/");
-  assert.equal(navigationRoutes.length, 6);
+  assert.equal(navigationRoutes.length, 5);
 });
 
 test("all module links map to exactly one parent and legacy paths redirect to canonical destinations", () => {
@@ -130,4 +132,5 @@ test("all module links map to exactly one parent and legacy paths redirect to ca
   assert.equal(legacyRoutes["/ai/gpt/status"], "/status/openai");
   assert.equal(legacyRoutes["/link"], "/network/ip");
   assert.equal(legacyRoutes["/network/link"], "/network/ip");
+  assert.equal(legacyRoutes["/network/subdomains"], "/network/ip");
 });

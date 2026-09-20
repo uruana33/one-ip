@@ -35,6 +35,7 @@ import {
   averageAccessRating,
   evidenceState,
   qualityRating,
+  summarizeAccessScopes,
   type Evidence,
   type EvidenceState,
 } from "./scenario-evidence";
@@ -112,6 +113,40 @@ export function ScenarioStars({
       ))}
       {showValue && <span>{stars}/5</span>}
     </span>
+  );
+}
+function AccessScopeSummary({
+  summary,
+  busy,
+}: {
+  summary: ReturnType<typeof summarizeAccessScopes>;
+  busy: boolean;
+}) {
+  const scopeLine = summary.measured
+    ? t("出口核验：{0} 个平台与查询 IP 一致，{1} 个不同，{2} 个未核验。", [
+        summary.ip,
+        summary.different,
+        summary.browser,
+      ])
+    : busy
+      ? t("正在取得平台响应；出口核验随结果显示。")
+      : t("尚未取得平台响应。");
+  return (
+    <div className="mb-3 space-y-1 text-xs text-muted-foreground">
+      <p>
+        <span className="font-medium text-foreground">{t("访问范围")}</span>：
+        {t("当前浏览器直接访问公开端点")}
+      </p>
+      <p>{scopeLine}</p>
+      {summary.different > 0 && (
+        <Badge variant="warning">{t("部分平台出口与查询 IP 不一致")}</Badge>
+      )}
+      <p>
+        {t(
+          "星级仅描述当前浏览器访问公开端点的响应速度，不等于查询 IP 的平台可用性。",
+        )}
+      </p>
+    </div>
   );
 }
 function EvidenceDetails({ evidence }: { evidence: Evidence }) {
@@ -492,6 +527,11 @@ export function ScenarioPanel({
       now,
     );
   const average = group ? summary(group.targets) : null;
+  const scopeSummary = summarizeAccessScopes(
+    Object.values(access.records),
+    ip,
+    now,
+  );
   const key = group?.inbound ? "https" : "quality";
   const evidence = records[key];
   const quality = group?.quality
@@ -570,13 +610,14 @@ export function ScenarioPanel({
           {access.busy ? <Pending>{t("停止检测")}</Pending> : t("重新测试")}
         </Button>
       </div>
+      <AccessScopeSummary summary={scopeSummary} busy={access.busy} />
       <div className="data-table connectivity-table ip-scenario-table">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>{t("应用场景")}</TableHead>
               <TableHead>{t("检测覆盖")}</TableHead>
-              <TableHead>{t("平均评分")}</TableHead>
+              <TableHead>{t("浏览器访问参考")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -614,12 +655,14 @@ export function ScenarioPanel({
           if (!open) setSelected(null);
         }}
         title={group?.label ?? t("应用场景评分")}
-        description={t("当前网络访问评分；点击平台查看采样与出口证据。")}
+        description={t(
+          "当前浏览器公开端点访问参考；点击平台查看采样与出口证据。",
+        )}
       >
         {group && average && (
           <div className="ip-scenario-dialog space-y-3 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span>{t("平均访问评分")}</span>
+              <span>{t("当前浏览器访问参考")}</span>
               {average.average !== null ? (
                 <ScenarioStars stars={average.average} />
               ) : (

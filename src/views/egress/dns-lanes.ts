@@ -167,28 +167,33 @@ function sourceHits(members: readonly DnsLaneMember[]): DnsLaneSource[] {
     .map(([name, samples]) => ({ name, samples, meta: dnsSourceMeta(name) }));
 }
 
-function geoScore(member: DnsLaneMember) {
-  const geo = member.geo;
-  let score = 0;
-  if (member.country_code) score += 3;
-  if (/,/.test(geo)) score += 3;
-  if (/United States|China|Japan|Germany|France|United Kingdom/i.test(geo))
-    score += 2;
-  if (/\b(Inc\.|LLC|NET)\b/i.test(geo) && !/,/.test(geo)) score -= 2;
-  score += Math.min(geo.length, 40) / 40;
-  return score;
+function sliceMember(
+  member: DnsLaneMember,
+  path: DnsTreePath,
+): DnsLaneMember | undefined {
+  const counted = Object.entries(member.sourceSamples ?? {}).filter(
+    ([name, samples]) => samples > 0 && dnsSourcePath(name) === path,
+  );
+  if (counted.length) {
+    const sourceSamples = Object.fromEntries(counted);
+    return {
+      ...member,
+      samples: counted.reduce((total, [, samples]) => total + samples, 0),
+      sources: counted.map(([name]) => name),
+      sourceSamples,
+    };
+  }
+  const sources = member.sources.filter((name) => dnsSourcePath(name) === path);
+  if (sources.length !== 1 || member.sources.length !== 1) return undefined;
+  return {
+    ...member,
+    sources,
+    sourceSamples: { [sources[0]]: member.samples },
+  };
 }
 
-function pickGeo(members: readonly DnsLaneMember[]): Geo | undefined {
-  if (!members.length) return undefined;
-  const best = [...members].sort(
-    (left, right) => geoScore(right) - geoScore(left),
-  )[0];
-  const coded = members.find((member) => member.country_code);
-  return geoFromDns({
-    ...best,
-    country_code: coded?.country_code ?? best.country_code,
-  });
+function pickGeo(member: DnsLaneMember | undefined): Geo | undefined {
+  return member ? geoFromDns(member) : undefined;
 }
 
 export function dnsLaneGroups(lane: DnsLane): DnsLaneGroup[] {
@@ -282,8 +287,7 @@ export function groupDnsLanes(state?: DnsProgress, busy = false): DnsLane[] {
     lane.ip = featured?.ip;
     lane.family = featured ? dnsFamily(featured.ip) : undefined;
     if (families.size === 1) lane.family = [...families][0];
-    lane.geo = pickGeo(lane.members);
-    if (lane.geo && lane.ip) lane.geo = { ...lane.geo, ip: lane.ip };
+    lane.geo = pickGeo(featured);
     lane.sources = sourceHits(lane.members);
     return lane;
   });
@@ -431,9 +435,31 @@ function sliceLane(lane: DnsLane, path: DnsTreePath): DnsLane | undefined {
   const belongs = dnsLanePath(lane);
   if (lane.kind === "pending") return { ...lane, key: `${lane.key}:${path}` };
   if (belongs !== "both" && belongs !== path) return;
-  if (lane.kind !== "blocked" || belongs !== "both") {
-    return belongs === "both" ? { ...lane, key: `${lane.key}:${path}` } : lane;
+  if (lane.kind !== "blocked" && belongs === "both") {
+    const members = lane.members.flatMap((member) => {
+      const sliced = sliceMember(member, path);
+      return sliced ? [sliced] : [];
+    });
+    if (!members.length) return;
+    const featured = [...members].sort(
+      (left, right) =>
+        right.samples - left.samples || left.ip.localeCompare(right.ip),
+    )[0];
+    const families = new Set(members.map((member) => dnsFamily(member.ip)));
+    const next: DnsLane = {
+      ...lane,
+      key: `${lane.key}:${path}`,
+      ip: featured.ip,
+      family: families.size === 1 ? [...families][0] : dnsFamily(featured.ip),
+      samples: members.reduce((total, member) => total + member.samples, 0),
+      members,
+      sources: sourceHits(members),
+      geo: pickGeo(featured),
+    };
+    return next;
   }
+  if (lane.kind !== "blocked" || belongs !== "both")
+    return belongs === "both" ? { ...lane, key: `${lane.key}:${path}` } : lane;
   const sources = lane.sources.filter(
     (source) => dnsSourcePath(source.name) === path,
   );
@@ -469,13 +495,13 @@ export function splitDnsForest(
     unique.push({ ...exit, path: dnsHttpPath(exit) });
   }
   const domestic = unique.find((exit) => dnsHttpPath(exit) === "domestic");
-  const overseas = unique.find((exit) => exit.ip !== domestic?.ip);
+  const overseas = unique.find((exit) => dnsHttpPath(exit) === "overseas");
   if (!domestic || !overseas) {
     return [
       {
         key: "all",
         origin: unique[0],
-        hint: unique[0]?.ip ? "HTTP 出口" : "HTTP 出口待读取",
+        hint: unique[0]?.ip ? "DNS 来源分组" : "DNS 来源分组待读取",
         lanes,
       },
     ];
@@ -484,7 +510,7 @@ export function splitDnsForest(
     {
       key: "domestic",
       origin: domestic,
-      hint: "HTTP 出口 · 国内",
+      hint: "DNS 来源分组 · 国内",
       lanes: withPending(
         lanes.flatMap((lane) => {
           const next = sliceLane(lane, "domestic");
@@ -497,7 +523,7 @@ export function splitDnsForest(
     {
       key: "overseas",
       origin: overseas,
-      hint: "HTTP 出口 · 海外",
+      hint: "DNS 来源分组 · 海外",
       lanes: withPending(
         lanes.flatMap((lane) => {
           const next = sliceLane(lane, "overseas");

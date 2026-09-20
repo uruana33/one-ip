@@ -1,5 +1,4 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { NumberTicker } from "@/components/number-ticker";
 import { ActionButton } from "@/components/toolkit";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +8,7 @@ import { hideIpAtom } from "@/store/privacy";
 import { useQueries } from "@tanstack/react-query";
 import { gsap } from "gsap";
 import { useAtomValue } from "jotai";
-import { detectSignal, summarizeSignals } from "./score";
+import { detectSignal, outcomeStatus, summarizeSignals } from "./score";
 import { SIGNALS } from "../../../vendor/claude-environment/signals";
 
 const labels = [
@@ -17,13 +16,53 @@ const labels = [
   "浏览器语言",
   "已安装中文字体",
   "厂商及软件字体",
-  "WebRTC 地址暴露",
+  "WebRTC 候选地址",
   "浏览器 / WebView 标记",
   "设备厂商标记",
   "日期格式区域",
   "时区偏移",
-  "Emoji 渲染风格",
+  "Emoji 风格线索",
 ];
+
+function statusLabel(status: ReturnType<typeof outcomeStatus>) {
+  if (status === "pending") return t("等待检测");
+  if (status === "observed") return t("已观测");
+  if (status === "unknown") return t("未知");
+  return t("不可用");
+}
+
+function statusClass(status: ReturnType<typeof outcomeStatus>) {
+  if (status === "observed") return "text-foreground";
+  if (status === "unknown") return "text-amber-600";
+  if (status === "unavailable") return "text-destructive";
+  return "text-muted-foreground";
+}
+
+function readableRaw(raw: string | undefined) {
+  if (!raw) return t("未知");
+  if (raw === "none detected") return t("未检测到明确标记");
+  if (raw === "canvas unavailable") return t("Canvas 不可用");
+  if (raw === "WebRTC unavailable") return t("WebRTC 不可用");
+  if (raw === "WebRTC check unavailable") return t("WebRTC 检测不可用");
+  if (raw === "WebRTC check timed out") return t("WebRTC 检测超时");
+  if (raw === "ICE candidate collection timed out")
+    return t("ICE 候选收集超时");
+  if (raw === "ICE candidate check failed") return t("ICE 候选检测失败");
+  if (raw === "ICE candidate address unavailable")
+    return t("ICE 候选地址不可读");
+  if (raw === "no ICE address candidate observed")
+    return t("未观测到 ICE 地址候选");
+  const candidate = raw.match(
+    /^(public|non-public) candidate observed \((.*)\)$/,
+  );
+  if (candidate)
+    return candidate[1] === "public"
+      ? t("公网候选：{0}", [candidate[2]])
+      : t("非公网候选：{0}", [candidate[2]]);
+  if (/ style$/.test(raw))
+    return t("UA 推测的 {0}", [raw.replace(/ style$/, "")]);
+  return raw;
+}
 
 export function EnvironmentScore() {
   const content = useRef<HTMLDivElement>(null);
@@ -39,14 +78,17 @@ export function EnvironmentScore() {
     })),
   });
   const busy = queries.some((query) => query.isFetching);
-  const result = summarizeSignals(
-    queries.map((query) =>
-      query.isFetching || query.isError ? undefined : query.data,
-    ),
-  );
+  const outcomes = queries.map((query) => {
+    if (query.isFetching || query.isPending) return undefined;
+    if (query.isError)
+      return { raw: "检测失败或超时", status: "unavailable" as const };
+    return query.data;
+  });
+  const result = summarizeSignals(outcomes);
   const completed = queries.filter(
     (query) => !query.isFetching && !query.isPending,
   ).length;
+
   useLayoutEffect(() => {
     if (!content.current) return;
     const media = gsap.matchMedia();
@@ -69,67 +111,26 @@ export function EnvironmentScore() {
     });
     return () => media.revert();
   }, [busy]);
-  const hits = SIGNALS.flatMap((definition, i) =>
-    !queries[i].isFetching &&
-    !queries[i].isError &&
-    (queries[i].data?.score ?? 0) >= 0.25
-      ? [
-          {
-            definition,
-            i,
-            points:
-              Math.round(queries[i].data!.score * definition.weight * 10) / 10,
-          },
-        ]
-      : [],
-  );
-  const band = { low: t("低风险"), medium: t("中风险"), high: t("高风险") }[
-    result.band
-  ];
-  const color = {
-    low: "text-emerald-600",
-    medium: "text-amber-600",
-    high: "text-destructive",
-  }[result.band];
-  const recommendations = [
-    ...(hits.some(
-      ({ definition }) =>
-        definition.id === "timezone" ||
-        definition.id === "timezoneOffset" ||
-        definition.id === "language" ||
-        definition.id === "intlLocale",
-    )
-      ? [t("核对系统时区、浏览器语言和区域格式是否符合实际使用环境。")]
-      : []),
-    ...(hits.some(({ definition }) => definition.id === "webrtcLeak")
-      ? [
-          t(
-            "检测到 ICE 地址候选，请在 WebRTC 页面核对公网地址及 UDP 路由；候选地址不一定代表泄露。",
-          ),
-        ]
-      : []),
-    ...(hits.some(({ definition }) =>
-      ["fonts", "vendorFonts", "cnBrowser", "deviceVendor", "emoji"].includes(
-        definition.id,
-      ),
-    )
-      ? [
-          t(
-            "字体、设备和 Emoji 属于弱环境线索，正常系统也可能命中，不建议仅为降低分数修改或删除它们。",
-          ),
-        ]
-      : []),
-    ...(!result.complete
-      ? [
-          t(
-            "部分检测未完成，请查看日志定位失败项，检查网络或浏览器限制后重试。",
-          ),
-        ]
-      : []),
-    t(
-      "结合上方网络卡片确认连通情况；这些环境信号不能确定 Claude 如何识别用户，也不能预测账号状态。",
-    ),
-  ];
+
+  const summary = busy
+    ? t("检测中…")
+    : result.complete
+      ? t("检测已完成")
+      : result.status === "unavailable"
+        ? t("部分检测不可用")
+        : result.status === "unknown"
+          ? t("存在未知结果")
+          : t("检测未完成");
+
+  const detailFor = (i: number) => {
+    const query = queries[i];
+    const outcome = outcomes[i];
+    if (query.isFetching || query.isPending) return t("等待结果…");
+    if (query.isError) return t("检测失败或超时");
+    if (SIGNALS[i].id === "webrtcLeak" && hidden) return t("IP 已隐藏");
+    return readableRaw(outcome?.raw);
+  };
+
   function renderLogs() {
     return (
       <div
@@ -139,12 +140,7 @@ export function EnvironmentScore() {
         className="max-h-72 overflow-auto font-mono text-xs leading-6"
       >
         {SIGNALS.map((definition, i) => {
-          const query = queries[i];
-          const pending = query.isFetching || query.isPending;
-          const unavailable =
-            !pending &&
-            (query.isError ||
-              /unknown|unavailable/i.test(query.data?.raw ?? "unknown"));
+          const status = outcomeStatus(outcomes[i]);
           return (
             <div
               key={definition.id}
@@ -153,51 +149,28 @@ export function EnvironmentScore() {
               <span className="shrink-0 text-muted-foreground">
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <span
-                className={
-                  pending
-                    ? "shrink-0 text-muted-foreground"
-                    : unavailable
-                      ? "shrink-0 text-amber-600"
-                      : "shrink-0 text-emerald-600"
-                }
-              >
-                [{pending ? t("检测中") : unavailable ? t("未完成") : t("完成")}
-                ]
+              <span className={`shrink-0 ${statusClass(status)}`}>
+                [{statusLabel(status)}]
               </span>
               <div className="min-w-0 flex-1 break-words">
                 <span>{t(labels[i])}</span>
                 <span className="text-muted-foreground">
-                  {" "}
-                  ·{" "}
-                  {pending
-                    ? t("等待结果…")
-                    : query.isError
-                      ? t("检测失败或超时")
-                      : definition.id === "webrtcLeak" && hidden
-                        ? t("IP 已隐藏")
-                        : query.data?.raw}
+                  {" · "}
+                  {detailFor(i)}
                 </span>
               </div>
-              {!pending && !unavailable && (
-                <span className="shrink-0 tabular-nums">
-                  +
-                  {Math.round(
-                    (query.data?.score ?? 0) * definition.weight * 10,
-                  ) / 10}
-                </span>
-              )}
             </div>
           );
         })}
       </div>
     );
   }
+
   return (
-    <Card className="cyber-card hud-frame">
+    <Card className="cyber-card">
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle>{t("Claude 中国用户检测")}</CardTitle>
+          <CardTitle>{t("浏览器环境信号")}</CardTitle>
           <ActionButton
             size="sm"
             variant="ghost"
@@ -215,44 +188,44 @@ export function EnvironmentScore() {
         >
           <div className="space-y-2 md:border-r md:pr-5">
             <div className="flex items-baseline gap-3">
-              <div className={`text-4xl font-medium tabular-nums ${color}`}>
-                <NumberTicker value={result.total} />
+              <div className="text-4xl font-medium tabular-nums">
+                {result.observedCount}
                 <span className="ml-1 text-xs font-normal text-muted-foreground">
-                  / 100
+                  / {SIGNALS.length}
                 </span>
               </div>
-              <span className={`text-sm font-medium ${color}`}>
-                {busy ? t("检测中…") : result.complete ? band : t("检测不完整")}
-              </span>
+              <span className="text-sm font-medium">{summary}</span>
             </div>
             <p className="text-xs leading-5 text-muted-foreground">
               {busy
                 ? t("正在检测环境特征…")
-                : result.complete
-                  ? t("环境信号评分，非 Claude 官方判定")
-                  : t("当前分数仅包含已完成项目，不作完整风险分档。")}
+                : t(
+                    "这里展示浏览器本次可观察到的环境信号和检测完成度，不推断用户所在地、账号状态或平台判定。",
+                  )}
             </p>
           </div>
-          <div
-            data-scan-enter
-            className="grid content-center gap-x-8 gap-y-2 sm:grid-cols-2"
-          >
-            {hits.map(({ definition, i, points }) => (
-              <div
-                key={definition.id}
-                className="flex min-w-0 items-center justify-between gap-3 border-b border-border/50 py-2 text-sm"
-              >
-                <span className="text-muted-foreground">{t(labels[i])}</span>
-                <span className="shrink-0 font-medium tabular-nums">
-                  +{points}
-                </span>
-              </div>
-            ))}
-            {!busy && !hits.length && (
-              <span className="text-sm text-muted-foreground">
-                {t("本次无命中信号")}
-              </span>
-            )}
+          <div data-scan-enter className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
+            {SIGNALS.map((definition, i) => {
+              const status = outcomeStatus(outcomes[i]);
+              return (
+                <div
+                  key={definition.id}
+                  className="min-w-0 border-b border-border/50 py-2 text-sm"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">
+                      {t(labels[i])}
+                    </span>
+                    <span className={`shrink-0 text-xs ${statusClass(status)}`}>
+                      {statusLabel(status)}
+                    </span>
+                  </div>
+                  <p className="mt-1 break-words text-xs text-foreground/80">
+                    {detailFor(i)}
+                  </p>
+                </div>
+              );
+            })}
             {busy && (
               <p
                 className="col-span-full text-xs text-muted-foreground"
@@ -266,19 +239,27 @@ export function EnvironmentScore() {
         <div className="flex items-center justify-between border-t pt-3">
           <details className="min-w-0 flex-1 text-sm">
             <summary className="w-fit cursor-pointer text-muted-foreground hover:text-foreground">
-              {t("建议与检测说明")}
+              {t("检测来源与修改说明")}
             </summary>
             <div className="mt-3 space-y-3 pr-3 text-xs leading-6 text-muted-foreground">
-              {!busy && (
-                <ul className="list-disc space-y-1 pl-4">
-                  {recommendations.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              )}
+              <ul className="list-disc space-y-1 pl-4">
+                <li>
+                  {t(
+                    "语言、字体、设备与 Emoji 是环境线索，不单独推断国家或账号风险。",
+                  )}
+                </li>
+                <li>
+                  {t(
+                    "WebRTC 候选地址只展示本次观测；私网候选不视为泄漏，公网候选也不自动判定为泄漏。",
+                  )}
+                </li>
+                {!result.complete && (
+                  <li>{t("部分检测未完成，请查看日志定位失败项后重试。")}</li>
+                )}
+              </ul>
               <p>
                 {t(
-                  "采用开源项目的 10 项检测与原始权重。分数为项目启发式规则，不是 Claude 官方判定或封禁概率；Emoji 项使用 UA 推测。",
+                  "检测列表参考 FuckClaude（MIT）；本站对检测状态、超时和 WebRTC 候选解析做了本地处理，结果不代表 Claude 官方判定。",
                 )}
               </p>
               <a

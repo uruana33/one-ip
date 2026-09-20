@@ -1,4 +1,8 @@
 import { t } from "@/i18n";
+import {
+  anonymousNegative,
+  readingAnonymity,
+} from "@/views/ip/model/anonymity";
 import type { PrefixAge } from "./prefix-age";
 import type { ScoreTone } from "./scores";
 
@@ -20,6 +24,19 @@ export interface CrossReading {
   hint: string;
   tone: ScoreTone;
   href: string;
+  /** Only fields actually read from the provider; absent means unknown. */
+  flags?: Partial<
+    Record<
+      | "vpn"
+      | "proxy"
+      | "tor"
+      | "relay"
+      | "residentialProxy"
+      | "hosting"
+      | "anonymous",
+      boolean
+    >
+  >;
 }
 
 export interface CrossPlace {
@@ -39,6 +56,8 @@ export interface CrossIntel {
   places?: CrossPlace[];
   unavailable: CrossSource[];
   prefix?: PrefixAge | null;
+  /** Fetch time, not the provider database's update time. */
+  checkedAt?: string;
 }
 
 export interface DisplayScore {
@@ -75,10 +94,13 @@ function metricLabel(reading: CrossReading) {
 }
 
 function displayValue(reading: CrossReading) {
-  if (reading.metric === "privacy" && reading.value === "No")
-    return t("未检出 VPN / 代理 / Tor");
-  if (reading.metric === "proxy" && reading.value === "No")
-    return t("未检出 VPN / 代理 / Tor");
+  if (
+    (reading.metric === "privacy" || reading.metric === "proxy") &&
+    reading.value === "No"
+  )
+    return anonymousNegative(readingAnonymity(reading))
+      ? t("已检测项目未检出")
+      : t("匿名检测不完整");
   if (
     reading.source === "ipapi" &&
     reading.metric === "proxy" &&
@@ -121,7 +143,12 @@ export function displayCrossReadings(readings: CrossReading[]): DisplayScore[] {
       value,
       hint,
       detail: `${source} · ${label}`,
-      tone: reading.tone,
+      tone:
+        (reading.metric === "privacy" || reading.metric === "proxy") &&
+        reading.value === "No" &&
+        !anonymousNegative(readingAnonymity(reading))
+          ? "neutral"
+          : reading.tone,
       kind: "cross",
     };
   });

@@ -1,12 +1,28 @@
 import { t } from "@/i18n";
 import {
+  anonymousHit,
+  anonymousNegative,
+  typedAnonymousHit,
+  readingAnonymity,
+  mergeAnonymity,
+  unknownAnonymity,
+  type AnonymitySignals,
+} from "@/views/ip/model/anonymity";
+import {
   sourceCatalog,
   type CatalogSourceId,
 } from "@/views/ip/model/cross-checks";
 import type { CrossIntel, CrossReading } from "@/views/ip/model/cross-intel";
 import {
+  identifyPublicService,
+  type PublicServiceIdentity,
+} from "@/views/ip/model/public-service";
+import { reputationApplies } from "@/views/ip/model/quality-policy";
+import {
   scoreQuality,
   type QualityScore,
+  type EvidenceCoverage,
+  collectUsageVotes,
 } from "@/views/ip/model/quality-score";
 import { parseAbuseRaw, type ScoreTone } from "@/views/ip/model/scores";
 import {
@@ -20,6 +36,10 @@ export type QualityKind =
   | "public-service"
   | "high-risk"
   | "vpn-exit"
+  | "anonymous-exit"
+  | "tor-exit"
+  | "relay-exit"
+  | "org"
   | "residential-proxy"
   | "datacenter"
   | "mobile"
@@ -39,7 +59,8 @@ export type SourceReputation = {
   raw: number;
 };
 
-export type SourceStatus = "ready" | "pending" | "unavailable" | "outbound";
+export type SourceStatus =
+  "ready" | "pending" | "unavailable" | "outbound" | "not-applicable";
 
 export interface QualityDimension {
   id: "network" | "reputation" | "runtime" | "freshness";
@@ -69,7 +90,7 @@ export interface SourceRow {
   tone: ScoreTone;
 }
 
-export interface SourceEvidence {
+export interface SourceEvidence extends AnonymitySignals {
   id: CatalogSourceId;
   name: string;
   href: string;
@@ -80,15 +101,10 @@ export interface SourceEvidence {
   headline: SourceHeadline;
   rows: SourceRow[];
   tone: ScoreTone;
-  vpn: boolean | null;
-  proxy: boolean | null;
-  hosting: boolean | null;
   usage: UsageClass | null;
-  residentialProxy: boolean;
-  /** IP-API `proxy` is VPN/proxy/Tor in one bit. It is not a typed VPN vote. */
-  untypedAnonymous: boolean;
-  tor: boolean;
+  usageConflict: boolean;
   reputation: SourceReputation | null;
+  reputationConflict: boolean;
   extremeFraud: boolean;
   elevatedFraud: boolean;
 }
@@ -99,29 +115,55 @@ export interface QualityAssessment {
   band: QualityBand;
   bandLabel: string;
   summary: string;
+  headline: string;
+  shortSummary: string;
+  tags: { label: string; tone: ScoreTone }[];
+  keyEvidence: {
+    title: string;
+    rows: { source: string; value: string; tone: ScoreTone }[];
+  };
   pending: boolean;
   sourcesReady: number;
   sourcesTotal: number;
   score: number | null;
   scoreReference: boolean;
+  scoreStatus: QualityScore["status"];
+  scoreMissingSources: string[];
+  scoreProfile: QualityScore["profile"];
+  evidence: EvidenceCoverage;
+  checkedAt?: string;
   scoreBreakdown: Pick<
     QualityScore,
     | "reputation"
     | "anonymity"
     | "usage"
-    | "freshness"
     | "freshnessDays"
-    | "freshnessEligible"
     | "prefixRegisteredAt"
     | "cap"
     | "uncapped"
+    | "effectiveWeights"
   >;
   network: QualityDimension;
   reputation: QualityDimension;
   freshness?: QualityDimension;
   runtime?: QualityDimension;
   terminalIp?: string;
+  publicService: PublicServiceIdentity | null;
   sources: SourceEvidence[];
+}
+
+/** Shared by the page and copied report so missing evidence stays explicit. */
+export function qualityScoreNotice(assessment: QualityAssessment) {
+  if (assessment.scoreStatus === "ready")
+    return assessment.scoreReference ? t("部分维度证据有限") : "";
+  const names = assessment.sources
+    .filter((source) => assessment.scoreMissingSources.includes(source.id))
+    .map((source) => source.name);
+  if (assessment.scoreStatus === "unavailable")
+    return t("尚未取得可评分的信誉或匿名信号");
+  return names.length
+    ? t("按已读证据估算；缺少 {0}", [names.join("、")])
+    : t("按已读维度估算，未返回的字段保持未知");
 }
 
 const HOSTING_ORG =
@@ -168,34 +210,38 @@ function scoreHeadline(
   };
 }
 
-function splitFlags(value: string) {
-  const text = value.replace(/\s+/g, " ").trim();
-  if (!text) return null;
-  if (isNegativeAnonymity(text))
-    return { vpn: false, proxy: false, tor: false, res: false };
-  const parts = text.split(/\s*·\s*/);
-  const known = new Set(["VPN", "Proxy", "Tor", "Relay", "Residential Proxy"]);
-  if (!parts.length || parts.some((part) => !known.has(part))) return null;
-  return {
-    vpn: parts.includes("VPN"),
-    proxy: parts.includes("Proxy") || parts.includes("Relay"),
-    tor: parts.includes("Tor"),
-    res: parts.includes("Residential Proxy"),
-  };
-}
-
-function flagsHero(flags: NonNullable<ReturnType<typeof splitFlags>>): {
+function flagsHero(flags: AnonymitySignals): {
   value: string;
   tone: ScoreTone;
 } {
-  if (flags.res) return { value: t("住宅代理"), tone: "bad" };
   const hits = [
     flags.vpn ? "VPN" : "",
     flags.proxy ? t("代理") : "",
     flags.tor ? "Tor" : "",
+    flags.relay ? t("中继") : "",
+    flags.residentialProxy ? t("住宅代理") : "",
+    flags.untypedAnonymous ? t("匿名出口（未分类型）") : "",
   ].filter(Boolean);
-  if (!hits.length) return { value: t("未检出"), tone: "good" };
-  return { value: hits.join(" · "), tone: flags.tor ? "bad" : "warn" };
+  if (hits.length)
+    return {
+      value: hits.join(" · "),
+      tone: flags.tor || flags.residentialProxy ? "bad" : "warn",
+    };
+  if (anonymousNegative(flags))
+    return { value: t("已检测项目未检出"), tone: "good" };
+  return { value: t("匿名检测不完整"), tone: "neutral" };
+}
+
+function flagRow(
+  label: string,
+  value: boolean | null,
+  hitTone: ScoreTone = "warn",
+): SourceRow {
+  return {
+    label,
+    value: value == null ? t("未知") : yn(value),
+    tone: value == null ? "neutral" : value ? hitTone : "good",
+  };
 }
 
 function coffeeUsageRow(
@@ -273,6 +319,8 @@ function coffeePresentation(d: CoffeeIp): {
   else if (d.is_abuser === true)
     rows.push({ label: t("滥用"), value: t("是"), tone: "bad" });
   rows.push(usageRow);
+  if (d.company_type)
+    rows.push({ label: t("组织类型"), value: d.company_type, tone: "neutral" });
   rows.push({
     label: t("匿名"),
     value: hits.length
@@ -284,7 +332,7 @@ function coffeePresentation(d: CoffeeIp): {
       ? "bad"
       : hits.length
         ? "warn"
-        : vpn === false
+        : vpn === false && proxy === false && tor === false
           ? "good"
           : "neutral",
   });
@@ -322,10 +370,9 @@ function presentReadings(
   const privacy = readings.find(
     (item) => item.metric === "privacy" || item.metric === "proxy",
   );
-  const usage = readings.find((item) => item.metric === "usage");
-  const splitSources = new Set(["ipinfo", "proxycheck", "scamalytics"]);
-  const flags =
-    privacy && splitSources.has(id) ? splitFlags(privacy.value) : null;
+  const usageReadings = readings.filter((item) => item.metric === "usage");
+  const usage = usageReadings[0];
+  const flags = privacy ? readingAnonymity(privacy) : null;
   const rows: SourceRow[] = [];
   let headline: SourceHeadline | null = null;
   let scored: CrossReading | null = null;
@@ -370,22 +417,12 @@ function presentReadings(
       caption: metric,
       tone: hero.tone,
     };
-  } else if (privacy) {
-    const untyped = id === "ipapi" || isUntypedAnonymousValue(privacy.value);
-    headline = {
-      kind: "verdict",
-      value: isNegativeAnonymity(privacy.value)
-        ? t("未检出")
-        : untyped
-          ? t("匿名出口")
-          : privacy.value,
-      caption: metric,
-      tone: isNegativeAnonymity(privacy.value) ? "good" : "warn",
-    };
   } else if (usage) {
     headline = {
       kind: "verdict",
-      value: usage.value,
+      value: [...new Set(usageReadings.map((item) => item.value))]
+        .sort()
+        .join(" · "),
       caption: t("用途类型"),
       tone: classifyUsage(usage.value) === "datacenter" ? "warn" : "neutral",
     };
@@ -398,57 +435,30 @@ function presentReadings(
     };
   }
 
-  if (flags && privacy) {
-    rows.push({
-      label: "VPN",
-      value: yn(flags.vpn),
-      tone: flags.vpn ? "warn" : "good",
-    });
-    rows.push({
-      label: t("代理"),
-      value: yn(flags.proxy),
-      tone: flags.proxy ? "warn" : "good",
-    });
-    rows.push({
-      label: "Tor",
-      value: yn(flags.tor),
-      tone: flags.tor ? "bad" : "good",
-    });
-    if (flags.res)
-      rows.push({ label: t("住宅代理"), value: t("是"), tone: "bad" });
-    if (privacy.hint === "Hosting" || privacy.hint === "Server")
-      rows.push({ label: t("托管"), value: t("是"), tone: "warn" });
-    else if (id === "ipinfo")
-      rows.push({ label: t("托管"), value: t("否"), tone: "good" });
-  } else if (privacy) {
-    const value = isNegativeAnonymity(privacy.value)
-      ? t("未检出")
-      : id === "ipapi" || isUntypedAnonymousValue(privacy.value)
-        ? t("匿名出口（未分类型）")
-        : privacy.value;
-    const tone: ScoreTone = isNegativeAnonymity(privacy.value)
-      ? "good"
-      : id === "ipapi" ||
-          isUntypedAnonymousValue(privacy.value) ||
-          isResidentialProxy(privacy.value)
-        ? "warn"
-        : classifyUsage(privacy.value) === "datacenter"
-          ? "warn"
-          : "neutral";
-    if (!(headline.kind === "verdict" && headline.value === value))
-      rows.push({
-        label: id === "ip2location" ? t("代理类型") : t("匿名"),
-        value,
-        tone,
-      });
-    if (privacy.hint === "Hosting" || privacy.hint === "Server")
-      rows.push({ label: t("托管"), value: t("是"), tone: "warn" });
+  if (flags) {
+    if (id === "ipapi") {
+      rows.push({ label: t("匿名"), ...flagsHero(flags) });
+    } else {
+      rows.push(flagRow("VPN", flags.vpn));
+      rows.push(flagRow(t("代理"), flags.proxy));
+      rows.push(flagRow("Tor", flags.tor, "bad"));
+      if (flags.relay != null) rows.push(flagRow(t("中继"), flags.relay));
+      if (flags.residentialProxy != null)
+        rows.push(flagRow(t("住宅代理"), flags.residentialProxy, "bad"));
+    }
+    const hosting =
+      flags.hosting ??
+      (privacy?.hint === "Hosting" || privacy?.hint === "Server" ? true : null);
+    if (hosting != null || id === "ipinfo")
+      rows.push(flagRow(t("托管"), hosting));
   }
 
   if (usage)
     rows.push({
       label: t("用途"),
-      value: usage.value,
+      value: [...new Set(usageReadings.map((item) => item.value))]
+        .sort()
+        .join(" · "),
       tone: classifyUsage(usage.value) === "datacenter" ? "warn" : "neutral",
     });
 
@@ -577,37 +587,6 @@ export function classifyUsage(value?: string): UsageClass | null {
   return null;
 }
 
-function isNegativeAnonymity(value: string) {
-  const key = value.toLowerCase();
-  return key === "no" || key.includes("未检测");
-}
-
-function isUntypedAnonymousValue(value: string) {
-  const key = value.replace(/\s+/g, " ").trim().toLowerCase();
-  return (
-    key === "anonymous" ||
-    key === "vpn / proxy / tor" ||
-    key.startsWith("匿名出口")
-  );
-}
-
-function anonymity(value: string, source?: string) {
-  if (isNegativeAnonymity(value))
-    return {
-      vpn: false as boolean | null,
-      proxy: false as boolean | null,
-      untyped: false,
-    };
-  if (source === "ipapi" || isUntypedAnonymousValue(value))
-    return { vpn: null, proxy: null, untyped: true };
-  const key = value.toLowerCase();
-  return {
-    vpn: /vpn/.test(key) as boolean | null,
-    proxy: /proxy|tor/.test(key) as boolean | null,
-    untyped: false,
-  };
-}
-
 function isResidentialProxy(value: string) {
   return /residential proxy|\bres\b/.test(value.toLowerCase());
 }
@@ -628,21 +607,25 @@ function bandLabel(band: QualityBand) {
   return t("数据不足");
 }
 
-function kindLabel(kind: QualityKind, vpnSplit: boolean) {
+function kindLabel(kind: QualityKind) {
   if (kind === "public-service") return t("公共服务");
   if (kind === "high-risk") return t("高风险 IP");
   if (kind === "vpn-exit") return t("VPN 出口");
+  if (kind === "anonymous-exit") return t("匿名出口特征");
+  if (kind === "tor-exit") return t("Tor 出口特征");
+  if (kind === "relay-exit") return t("中继出口特征");
+  if (kind === "org") return t("机构网络");
   if (kind === "residential-proxy") return t("住宅代理");
   if (kind === "datacenter") return t("数据中心");
   if (kind === "mobile") return t("移动网络");
-  if (kind === "residential") return t("家庭宽带");
+  if (kind === "residential") return t("住宅网络特征");
   if (kind === "isp") return t("ISP 网络");
-  if (kind === "disputed") return vpnSplit ? t("争议住宅") : t("用途有争议");
+  if (kind === "disputed") return t("来源存在分歧");
   return t("未知");
 }
 
 function coffeeUsage(d: CoffeeIp): UsageClass | "conflict" | null {
-  if (d.is_public_service) return "public-service";
+  if (d.is_public_service === true) return "public-service";
   if (usageConflict(d).length > 1) return "conflict";
   if (d.isResidential === true) return "residential";
   if (d.is_mobile === true) return "mobile";
@@ -715,9 +698,14 @@ function coffeeFraud(d: CoffeeIp) {
   };
 }
 
+function readingScore(reading: CrossReading) {
+  if (!reading.value.trim()) return null;
+  return usableScore(Number(reading.value));
+}
+
 function readingFraud(reading: CrossReading) {
-  const score = Number(reading.value);
-  if (!Number.isFinite(score))
+  const score = readingScore(reading);
+  if (score == null)
     return { elevated: false, extreme: false, tone: "neutral" as ScoreTone };
   if (reading.metric === "purity")
     return {
@@ -766,39 +754,23 @@ function factsFromReadings(readings: CrossReading[]): SourceFact[] {
         label: `${t("纯净度")} ${value}`,
         tone: readingFraud(reading).tone,
       });
-    else if (isNegativeAnonymity(value))
-      facts.push({
-        label:
-          reading.metric === "privacy" || reading.metric === "proxy"
-            ? t("未检出 VPN / 代理 / Tor")
-            : t("未检测到"),
-        tone: "good",
-      });
-    else if (
-      (reading.metric === "privacy" || reading.metric === "proxy") &&
-      (reading.source === "ipapi" || isUntypedAnonymousValue(value))
-    ) {
-      facts.push({
-        label: t("匿名出口（未分类型）"),
-        tone: "warn",
-      });
-    } else {
-      const flags = anonymity(value, reading.source);
+    else if (reading.metric === "privacy" || reading.metric === "proxy") {
+      const flags = readingAnonymity(reading);
+      const hero = flagsHero(flags);
+      facts.push({ label: hero.value, tone: hero.tone });
+      if (anonymousHit(flags) && value !== hero.value)
+        facts.push({ label: value, tone: hero.tone });
+    } else
       facts.push({
         label: value,
-        tone: isResidentialProxy(value)
-          ? "bad"
-          : flags.vpn || flags.proxy || classifyUsage(value) === "datacenter"
-            ? "warn"
-            : "neutral",
+        tone: classifyUsage(value) === "datacenter" ? "warn" : "neutral",
       });
-    }
     if (reading.hint === "Hosting")
       facts.push({ label: t("托管"), tone: "warn" });
     else if (reading.hint === "Server")
       facts.push({ label: t("托管"), tone: "warn" });
     else if (reading.hint && !/hosting|server|notserver/i.test(reading.hint)) {
-      const flags = anonymity(reading.value, reading.source);
+      const flags = readingAnonymity(reading);
       facts.push({
         label: reading.hint,
         tone:
@@ -812,47 +784,29 @@ function factsFromReadings(readings: CrossReading[]): SourceFact[] {
 }
 
 function signalsFromReadings(readings: CrossReading[]) {
-  let vpn: boolean | null = null;
-  let proxy: boolean | null = null;
-  let hosting: boolean | null = null;
-  let usage: UsageClass | null = null;
-  let residentialProxy = false;
-  let untypedAnonymous = false;
-  let tor = false;
-  let reputation: SourceEvidence["reputation"] = null;
+  const signals = { ...unknownAnonymity };
+  const usages = new Set<UsageClass>();
+  const reputations = new Map<string, SourceReputation>();
   let extremeFraud = false;
   let elevatedFraud = false;
   const tones: ScoreTone[] = [];
 
   for (const reading of readings) {
     if (reading.metric === "privacy" || reading.metric === "proxy") {
-      const flags = anonymity(reading.value, reading.source);
-      if (flags.untyped) {
-        untypedAnonymous = true;
-      } else if (isNegativeAnonymity(reading.value)) {
-        vpn = vpn || flags.vpn;
-        if (vpn !== true) vpn = false;
-        proxy = proxy || flags.proxy;
-        if (proxy !== true) proxy = false;
-      } else {
-        if (flags.vpn) vpn = true;
-        if (flags.proxy) proxy = true;
-        if (vpn === null && !flags.vpn) vpn = false;
-        if (proxy === null && !flags.proxy) proxy = false;
-      }
-      if (isResidentialProxy(reading.value)) residentialProxy = true;
-      if (/tor/.test(reading.value.toLowerCase())) tor = true;
-      if (/dch|host/.test(reading.value.toLowerCase())) hosting = true;
-      tones.push(reading.tone);
+      const flags = readingAnonymity(reading);
+      mergeAnonymity(signals, flags);
+      tones.push(flagsHero(flags).tone);
     }
     if (reading.metric === "usage") {
-      usage = classifyUsage(reading.value) ?? usage;
-      if (usage === "datacenter") hosting = true;
+      const usage = classifyUsage(reading.value);
+      if (usage) usages.add(usage);
+      if (usage === "datacenter") signals.hosting = true;
       if (/server/i.test(reading.value) || reading.hint === "Server")
-        hosting = true;
+        signals.hosting = true;
       tones.push(reading.tone);
     }
-    if (reading.hint === "Hosting" || reading.hint === "Server") hosting = true;
+    if (reading.hint === "Hosting" || reading.hint === "Server")
+      signals.hosting = true;
     if (
       reading.metric === "fraud" ||
       reading.metric === "risk" ||
@@ -862,22 +816,23 @@ function signalsFromReadings(readings: CrossReading[]) {
       elevatedFraud ||= fraud.elevated;
       extremeFraud ||= fraud.extreme;
       tones.push(fraud.tone);
-      const raw = Number(reading.value);
-      if (Number.isFinite(raw)) reputation = { kind: reading.metric, raw };
+      const raw = readingScore(reading);
+      if (raw != null)
+        reputations.set(`${reading.metric}:${raw}`, {
+          kind: reading.metric,
+          raw,
+        });
     }
   }
   return {
-    vpn,
-    proxy,
-    hosting,
-    usage,
-    residentialProxy,
-    untypedAnonymous,
-    tor,
-    reputation,
-    extremeFraud,
-    elevatedFraud,
-    tone: worstTone(tones),
+    ...signals,
+    usage: usages.size === 1 ? [...usages][0] : null,
+    usageConflict: usages.size > 1,
+    reputation: reputations.size === 1 ? [...reputations.values()][0] : null,
+    reputationConflict: reputations.size > 1,
+    extremeFraud: reputations.size > 1 ? false : extremeFraud,
+    elevatedFraud: reputations.size > 1 ? false : elevatedFraud,
+    tone: reputations.size > 1 ? ("warn" as ScoreTone) : worstTone(tones),
   };
 }
 
@@ -904,26 +859,36 @@ function coffeeEvidence(
     id: "coffee",
     name: "Net.Coffee",
     href,
-    status: "ready",
+    status:
+      usage != null ||
+      trust != null ||
+      coffeeFraud(d).elevated ||
+      [d.is_vpn, d.is_proxy, d.is_tor, d.is_datacenter].some(
+        (flag) => typeof flag === "boolean",
+      )
+        ? "ready"
+        : "unavailable",
     facts: facts.length ? facts : [{ label: t("已读取"), tone: "neutral" }],
     headline: card.headline,
     rows: card.rows,
     tone: worstTone([
       fraud.tone,
       usage === "conflict" || usage === "datacenter" ? "warn" : "neutral",
-      tri(d.is_vpn) || tri(d.is_proxy) || tri(d.is_tor) ? "warn" : "good",
+      tri(d.is_vpn) || tri(d.is_proxy) || tri(d.is_tor)
+        ? "warn"
+        : [d.is_vpn, d.is_proxy, d.is_tor].every((flag) => flag === false)
+          ? "good"
+          : "neutral",
     ]),
+    ...unknownAnonymity,
     vpn: tri(d.is_vpn),
-    proxy:
-      tri(d.is_proxy) === true || tri(d.is_tor) === true
-        ? true
-        : tri(d.is_proxy),
+    proxy: tri(d.is_proxy),
+    tor: tri(d.is_tor),
     hosting,
     usage: usage === "conflict" ? null : usage,
-    residentialProxy: false,
-    untypedAnonymous: false,
-    tor: d.is_tor === true,
+    usageConflict: usage === "conflict",
     reputation: trust != null ? { kind: "trust", raw: trust } : null,
+    reputationConflict: false,
     extremeFraud: fraud.extreme,
     elevatedFraud: fraud.elevated,
   };
@@ -940,14 +905,11 @@ function outboundFacts(id: CatalogSourceId) {
 }
 
 const silentSignals = {
-  vpn: null as boolean | null,
-  proxy: null as boolean | null,
-  hosting: null as boolean | null,
+  ...unknownAnonymity,
   usage: null as UsageClass | null,
-  residentialProxy: false,
-  untypedAnonymous: false,
-  tor: false,
+  usageConflict: false,
   reputation: null as SourceEvidence["reputation"],
+  reputationConflict: false,
   extremeFraud: false,
   elevatedFraud: false,
   tone: "neutral" as ScoreTone,
@@ -974,7 +936,27 @@ function buildSources(
         why: def.why,
       };
 
-    const readings = grouped.get(def.id) ?? [];
+    if (!reputationApplies(def.id, d.ip))
+      return {
+        id: def.id,
+        name: def.name,
+        href: def.href,
+        metric: def.metric,
+        why: def.why,
+        status: "not-applicable" as const,
+        ...silentSignals,
+        facts: [
+          { label: t("该来源不支持 IPv6 评分"), tone: "neutral" as const },
+        ],
+        headline: {
+          kind: "verdict" as const,
+          value: t("不适用"),
+          caption: def.metric,
+          tone: "neutral" as const,
+        },
+        rows: [],
+      };
+    const readings = def.auto ? (grouped.get(def.id) ?? []) : [];
     if (readings.length) {
       const parsed = signalsFromReadings(readings);
       const card = presentReadings(def.id, def.metric, readings);
@@ -986,7 +968,14 @@ function buildSources(
         why: def.why,
         status: "ready" as const,
         facts: factsFromReadings(readings),
-        headline: card.headline,
+        headline: parsed.reputationConflict
+          ? {
+              kind: "verdict",
+              value: t("信誉读数冲突"),
+              caption: def.metric,
+              tone: "warn",
+            }
+          : card.headline,
         rows: card.rows,
         ...parsed,
       };
@@ -1048,47 +1037,65 @@ function buildSummary(
   coffee: CoffeeIp,
   terminal?: TerminalEgressReading | null,
   selfLookup = false,
+  publicService: PublicServiceIdentity | null = null,
 ) {
-  const vpnYes = sources.filter((item) => item.vpn === true);
-  const vpnNo = sources.filter((item) => item.vpn === false);
-  const untypedYes = sources.filter((item) => item.untypedAnonymous);
   const clauses: string[] = [];
-  if (vpnYes.length && untypedYes.length && vpnNo.length)
-    clauses.push(
-      t("{0} 标 VPN，{1} 标匿名出口（未分类型），{2} 未检测到匿名", [
-        names(vpnYes),
-        names(untypedYes),
-        names(vpnNo),
-      ]),
-    );
-  else if (untypedYes.length && vpnNo.length)
-    clauses.push(
-      t("{0} 标匿名出口（未分类型），{1} 未检测到匿名", [
-        names(untypedYes),
-        names(vpnNo),
-      ]),
-    );
-  else if (vpnYes.length && vpnNo.length)
-    clauses.push(
-      t("{0} 标 VPN，{1} 未检测到匿名", [names(vpnYes), names(vpnNo)]),
-    );
-  else if (vpnYes.length >= 2)
-    clauses.push(t("{0} 同时标出 VPN / 代理", [names(vpnYes)]));
-  else if (vpnYes.length === 1) clauses.push(t("{0} 标 VPN", [names(vpnYes)]));
-  else if (untypedYes.length)
-    clauses.push(t("{0} 标匿名出口（未分类型）", [names(untypedYes)]));
-  else if (vpnNo.length) clauses.push(t("已读取来源未标 VPN / 代理"));
+  if (publicService)
+    clauses.push(t("已按运营方公开记录识别为 {0}。", [publicService.label]));
+  const hits = sources.filter(anonymousHit);
+  const negatives = sources.filter(anonymousNegative);
+  for (const source of hits) {
+    clauses.push(t("{0} 标出 {1}", [source.name, flagsHero(source).value]));
+  }
+  if (negatives.length)
+    clauses.push(t("{0} 在已检测项目中未检出匿名特征", [names(negatives)]));
+  if (!hits.length && !negatives.length)
+    clauses.push(t("匿名检测证据不足，不能判断是否为匿名出口"));
+  if (hits.length && negatives.length) clauses.push(t("匿名检测存在分歧"));
 
   const conflict = usageConflict(coffee);
   if (conflict.length > 1)
     clauses.push(t("Net.Coffee 同时标出 {0}", [conflict.join(" · ")]));
+  if (
+    coffee.isResidential === true &&
+    classifyUsage(coffee.company_type) === "org"
+  ) {
+    clauses.push(
+      t("Net.Coffee 同时记录组织类型 {0}，实际接入用途待核实", [
+        coffee.company_type,
+      ]),
+    );
+  }
+  if (!publicService && usageDisputed(sources, coffee)) {
+    for (const source of sources.filter(
+      (item) => item.usage != null || item.usageConflict,
+    )) {
+      const value =
+        source.rows.find((row) => row.label === t("用途"))?.value ??
+        source.usage!;
+      clauses.push(t("{0} 用途标为 {1}", [source.name, value]));
+    }
+    clauses.push(t("用途存在分歧，暂不能确认家庭宽带"));
+  }
 
   for (const source of sources) {
+    if (source.reputationConflict) {
+      clauses.push(t("{0} 的信誉读数冲突，未参与计分", [source.name]));
+      continue;
+    }
     if (!source.extremeFraud && !source.elevatedFraud) continue;
-    const hit = source.facts.find((part) =>
-      /欺诈分|风控值|风险分|纯净度|滥用/.test(part.label),
+    const reputation = source.reputation;
+    const label =
+      reputation?.kind === "purity"
+        ? t("纯净度")
+        : reputation?.kind === "fraud"
+          ? t("欺诈分")
+          : reputation?.kind === "risk"
+            ? t("风险分")
+            : t("滥用");
+    clauses.push(
+      `${source.name} ${label}${reputation && reputation.kind !== "trust" ? ` ${reputation.raw}` : ""}`,
     );
-    if (hit) clauses.push(`${source.name} ${hit.label}`);
   }
 
   if (terminal?.ip) {
@@ -1110,67 +1117,88 @@ function buildSummary(
 
   const tail =
     kind === "disputed"
-      ? t("交叉验证未达成一致，不能当作普通住宅 IP。")
-      : kind === "vpn-exit"
-        ? t("更像匿名出口，而不是普通住宅线路。")
+      ? t("来源存在分歧，应结合各项证据核实。")
+      : kind === "vpn-exit" ||
+          kind === "anonymous-exit" ||
+          kind === "tor-exit" ||
+          kind === "relay-exit"
+        ? t("已读取来源标出匿名或中继特征；这不等于恶意行为。")
         : kind === "high-risk"
-          ? t("信誉信号偏高，不适合当作干净住宅 IP。")
+          ? t("已读取来源存在较强风险信号。")
           : kind === "residential-proxy"
             ? t("命中住宅代理特征，ISP 名称不能当作普通家宽。")
             : kind === "datacenter"
-              ? t("用途指向机房网络，常被风控视为非自然来源。")
+              ? t("已读取来源的用途指向数据中心。")
               : kind === "residential"
-                ? t("交叉验证偏向住宅 / ISP 网络，且未见匿名出口。")
-                : kind === "isp"
-                  ? t("来源只标了 ISP，不能据此当成家庭宽带。")
-                  : kind === "mobile"
-                    ? t("交叉验证偏向移动运营商网络。")
-                    : kind === "public-service"
-                      ? t("由公共服务商运营的地址，例如公共 DNS。")
-                      : t("现有来源还不足以给出稳定结论。");
+                ? t("已读取来源标有住宅用途，实际接入类型仍需线路信息核实。")
+                : kind === "org"
+                  ? t(
+                      "已读取来源标为企业或教育等机构网络，不能据此当成家庭宽带。",
+                    )
+                  : kind === "isp"
+                    ? t("来源只标了 ISP，不能据此当成家庭宽带。")
+                    : kind === "mobile"
+                      ? t("已读取来源标有移动运营商用途。")
+                      : kind === "public-service"
+                        ? t("由公共服务商运营的地址，例如公共 DNS。")
+                        : t("现有来源还不足以给出稳定结论。");
 
   const head = clauses.join(" · ");
   return head ? `${head}。${tail}` : tail;
 }
 
-function decideKind(sources: SourceEvidence[], coffee: CoffeeIp): QualityKind {
-  if (coffee.is_public_service) return "public-service";
+function usageDisputed(sources: SourceEvidence[], coffee: CoffeeIp) {
+  const votes = collectUsageVotes(sources);
+  return (
+    usageConflict(coffee).length > 1 ||
+    sources.some((source) => source.usageConflict) ||
+    (votes.includes("datacenter") &&
+      votes.some(
+        (vote) => vote !== "datacenter" && vote !== "public-service",
+      )) ||
+    (votes.includes("org") &&
+      votes.some((vote) => vote === "residential" || vote === "mobile")) ||
+    (votes.includes("residential") && votes.includes("mobile"))
+  );
+}
 
-  const vpnYes = sources.filter((item) => item.vpn === true).length;
-  const vpnNo = sources.filter((item) => item.vpn === false).length;
+function decideKind(
+  sources: SourceEvidence[],
+  coffee: CoffeeIp,
+  publicService: boolean,
+): QualityKind {
+  const typedYes = sources.filter(typedAnonymousHit).length;
+  const negatives = sources.filter(anonymousNegative).length;
+  const hits = sources.filter(anonymousHit);
   const extreme = sources.filter((item) => item.extremeFraud).length;
-  const usageVotes = sources
-    .map((item) => item.usage)
-    .filter((value): value is UsageClass => value != null);
-  const residential = usageVotes.filter(
-    (value) => value === "residential",
-  ).length;
-  const isp = usageVotes.filter((value) => value === "isp").length;
-  const mobile = usageVotes.filter((value) => value === "mobile").length;
-  const datacenter = usageVotes.filter(
-    (value) => value === "datacenter",
-  ).length;
-  const coffeeConflict = usageConflict(coffee).length > 1;
-  const usageSplit =
-    coffeeConflict || (datacenter > 0 && residential + isp + mobile > 0);
-  const vpnSplit = vpnYes > 0 && vpnNo > 0;
-  const untypedYes = sources.filter((item) => item.untypedAnonymous).length;
-  const untypedSplit = untypedYes > 0 && vpnNo > 0;
-
   if (
     coffee.is_abuser === true ||
     extreme >= 2 ||
-    (extreme >= 1 && vpnYes >= 2)
+    (extreme >= 1 && typedYes >= 2)
   )
     return "high-risk";
   if (sources.some((item) => item.residentialProxy)) return "residential-proxy";
-  if (vpnYes >= 2 && vpnYes > vpnNo) return "vpn-exit";
-  if (vpnSplit || untypedSplit || usageSplit) return "disputed";
-  if (datacenter > residential + isp + mobile) return "datacenter";
-  if (mobile && mobile >= residential && mobile >= isp) return "mobile";
-  if (residential && !datacenter) return "residential";
-  if (isp && !datacenter && !residential) return "isp";
-  if (datacenter) return "datacenter";
+  if (sources.some((item) => item.tor)) return "tor-exit";
+  if (hits.length) {
+    if (negatives > 0 && typedYes <= negatives) return "disputed";
+    if (
+      hits.every(
+        (item) =>
+          item.relay && !item.vpn && !item.proxy && !item.untypedAnonymous,
+      )
+    )
+      return "relay-exit";
+    if (hits.every((item) => item.vpn)) return "vpn-exit";
+    return "anonymous-exit";
+  }
+  if (publicService) return "public-service";
+  if (usageDisputed(sources, coffee)) return "disputed";
+  const votes = collectUsageVotes(sources);
+  if (votes.includes("datacenter")) return "datacenter";
+  if (votes.includes("org")) return "org";
+  if (votes.includes("mobile")) return "mobile";
+  if (votes.includes("residential")) return "residential";
+  if (votes.includes("isp")) return "isp";
   return "unknown";
 }
 
@@ -1179,21 +1207,16 @@ function networkDimension(
   sources: SourceEvidence[],
   coffee: CoffeeIp,
 ): QualityDimension {
-  const vpnYes = sources.filter((item) => item.vpn === true).length;
-  const vpnNo = sources.filter((item) => item.vpn === false).length;
-  const untypedYes = sources.filter((item) => item.untypedAnonymous).length;
-  const conflict = usageConflict(coffee).length > 1;
+  const hit = sources.some(anonymousHit);
+  const negative = sources.some(anonymousNegative);
+  const conflict = usageDisputed(sources, coffee);
   const org = coffee.isp || coffee.asOrganization || coffee.asname;
   let value = t("未知");
   let tone: ScoreTone = "neutral";
-  if (kind === "vpn-exit" || vpnYes >= 2) {
-    value = t("匿名出口");
-    tone = "bad";
-  } else if (
-    kind === "disputed" &&
-    (vpnYes > 0 || untypedYes > 0) &&
-    vpnNo > 0
-  ) {
+  if (["vpn-exit", "anonymous-exit", "tor-exit", "relay-exit"].includes(kind)) {
+    value = kindLabel(kind);
+    tone = kind === "tor-exit" ? "bad" : "warn";
+  } else if (kind === "disputed" && hit && negative) {
     value = t("匿名检测存在分歧");
     tone = "warn";
   } else if (kind === "disputed" || conflict) {
@@ -1202,11 +1225,13 @@ function networkDimension(
   } else if (kind === "datacenter") {
     value = t("数据中心网络");
     tone = "warn";
+  } else if (kind === "org") {
+    value = t("机构网络");
   } else if (kind === "mobile") {
     value = t("移动运营商网络");
     tone = "good";
   } else if (kind === "residential") {
-    value = t("家庭宽带");
+    value = t("住宅网络特征");
     tone = "good";
   } else if (kind === "isp") {
     value = t("ISP 网络");
@@ -1231,10 +1256,179 @@ function networkDimension(
   };
 }
 
+function conciseConclusion(
+  kind: QualityKind,
+  sources: SourceEvidence[],
+  scored: QualityScore,
+) {
+  const hits = sources.filter(anonymousHit);
+  const negative = sources.some(anonymousNegative);
+  const org = sources.some((source) => source.usage === "org");
+  const lowRisk = scored.value != null && scored.value >= 80;
+  let headline = kindLabel(kind);
+  let shortSummary = t("现有记录可供参考，实际接入类型仍待核实。");
+  if (kind === "disputed") {
+    headline = hits.length
+      ? t("匿名特征需核实")
+      : lowRisk
+        ? t("风险较低，用途待核实")
+        : t("用途存在分歧");
+    shortSummary = hits.length
+      ? t("部分来源标出匿名出口，检测结果尚未一致。")
+      : org
+        ? t("住宅与机构标记不一致，暂不能确认为家庭宽带。")
+        : t("网络用途标记不一致，建议结合实际线路核实。");
+  } else if (kind === "high-risk") {
+    headline = t("风险较高");
+    shortSummary = t("已读记录存在较强风险信号，建议核实后使用。");
+  } else if (kind === "tor-exit") {
+    shortSummary = t("检测到 Tor 出口特征，可能触发平台限制。");
+  } else if (kind === "residential-proxy") {
+    shortSummary = t("检测到住宅代理特征，不能按普通家宽判断。");
+  } else if (kind === "vpn-exit" || kind === "anonymous-exit") {
+    shortSummary = t("检测到代理或 VPN 特征，平台接受程度可能不同。");
+  } else if (kind === "relay-exit") {
+    shortSummary = t("检测到中继特征，不等于存在恶意行为。");
+  } else if (kind === "public-service") {
+    headline = t("公共服务地址");
+    shortSummary = t("已识别为公共服务端点，不用于判断家庭宽带质量。");
+  } else if (kind === "org") {
+    shortSummary = t("用途标记偏向企业或教育等机构网络。");
+  } else if (kind === "datacenter") {
+    shortSummary = t("用途标记偏向机房，适用性取决于目标平台。");
+  } else if (kind === "residential" || kind === "mobile" || kind === "isp") {
+    shortSummary = negative
+      ? t("已读来源未见明显匿名特征，接入类型仍以实际线路为准。")
+      : t("已有接入类型线索，匿名状态仍待进一步核实。");
+  } else {
+    headline =
+      scored.value == null
+        ? t("正在了解这个 IP")
+        : lowRisk
+          ? t("当前风险信号较低")
+          : t("建议进一步核实");
+    shortSummary = t("先依据已读信号评估，网络用途尚未确认。");
+  }
+  const tags: QualityAssessment["tags"] = [];
+  if (hits.length)
+    tags.push({ label: t("{0} 家标出匿名特征", [hits.length]), tone: "warn" });
+  else if (negative) tags.push({ label: t("未检出代理特征"), tone: "good" });
+  else tags.push({ label: t("匿名状态待核实"), tone: "neutral" });
+  if (kind === "disputed")
+    tags.push({
+      label: org && !hits.length ? t("家宽 / 机构分歧") : t("来源有分歧"),
+      tone: "warn",
+    });
+  else if (scored.reputation != null)
+    tags.push({
+      label: scored.reputation >= 80 ? t("信誉信号良好") : t("信誉需关注"),
+      tone: scored.reputation >= 80 ? "good" : "warn",
+    });
+  return { headline, shortSummary, tags };
+}
+
+function keyEvidence(
+  kind: QualityKind,
+  sources: SourceEvidence[],
+  publicService: PublicServiceIdentity | null,
+): QualityAssessment["keyEvidence"] {
+  if (kind === "high-risk") {
+    return {
+      title: t("主要风险信号"),
+      rows: sources
+        .filter((source) => source.extremeFraud || source.elevatedFraud)
+        .slice(0, 3)
+        .map((source) => ({
+          source: source.name,
+          value:
+            source.id === "coffee"
+              ? t("滥用风险标记")
+              : source.headline.kind === "score"
+                ? `${source.headline.caption.split(" · ")[0]} ${source.headline.value}`
+                : source.headline.value,
+          tone: "bad",
+        })),
+    };
+  }
+  const anonymous = sources.filter(anonymousHit);
+  if (anonymous.length) {
+    const rows = anonymous
+      .slice(0, 2)
+      .map((source) => ({ source: source.name, ...flagsHero(source) }));
+    const negative = sources.filter(anonymousNegative);
+    if (negative.length)
+      rows.push({
+        source: negative.map((source) => source.name).join(" / "),
+        value: t("已检测项目未检出"),
+        tone: "good",
+      });
+    return { title: t("匿名检测对照"), rows };
+  }
+  if (publicService)
+    return {
+      title: t("用途核对"),
+      rows: [
+        {
+          source: publicService.provider,
+          value: publicService.label,
+          tone: "neutral",
+        },
+      ],
+    };
+  const usage = sources.filter(
+    (source) => source.usage != null || source.usageConflict,
+  );
+  if (usage.length)
+    return {
+      title: t("用途来源对照"),
+      rows: usage.slice(0, 3).map((source) => {
+        const raw = source.rows.find((row) => row.label === t("用途"))?.value;
+        let value = raw ?? t("未知");
+        if (source.usage === "residential") value = t("住宅网络");
+        else if (source.usage === "org")
+          value = /edu|university|college|school/i.test(raw ?? "")
+            ? t("教育机构")
+            : /business|corporate/i.test(raw ?? "")
+              ? t("商业网络")
+              : t("机构网络");
+        else if (source.usage === "datacenter") value = t("数据中心");
+        else if (source.usage === "mobile") value = t("移动网络");
+        else if (source.usage === "isp") value = t("ISP 网络");
+        return {
+          source: source.name,
+          value,
+          tone:
+            source.usageConflict || kind === "disputed" ? "warn" : "neutral",
+        };
+      }),
+    };
+  return {
+    title: t("已读信誉依据"),
+    rows: sources
+      .filter((source) => source.reputation != null)
+      .slice(0, 3)
+      .map((source) => ({
+        source: source.name,
+        value: `${source.headline.caption.split(" · ")[0]} ${source.headline.value}`,
+        tone: source.headline.tone,
+      })),
+  };
+}
+
 function reputationDimension(
   sources: SourceEvidence[],
   scored: QualityScore,
 ): QualityDimension {
+  if (scored.reputation == null)
+    return {
+      id: "reputation",
+      label: t("信誉"),
+      value: t("证据不足"),
+      hint: scored.evidence.reputation.length
+        ? t("信誉来源不完整，保留原始读数，暂停合成信誉维")
+        : t("没有可用的信誉读数，未知不会计为低风险"),
+      tone: "neutral",
+    };
   const r = Math.round(scored.reputation);
   if (r <= 25)
     return {
@@ -1261,18 +1455,12 @@ function reputationDimension(
       tone: "warn",
     };
   if (
-    sources.some(
-      (item) =>
-        item.status === "ready" &&
-        item.facts.some((part) =>
-          /欺诈分|风控值|风险分|纯净度|滥用/.test(part.label),
-        ),
-    )
+    sources.some((item) => item.status === "ready" && item.reputation != null)
   )
     return {
       id: "reputation",
       label: t("信誉"),
-      value: t("未见明显滥用"),
+      value: t("已读信誉信号较低风险"),
       hint: t("信誉维 {0} · IPQS / AbuseIPDB 未计入", [r]),
       tone: "good",
     };
@@ -1298,45 +1486,22 @@ function freshnessDimension(scored: QualityScore): QualityDimension {
           : t("{0} 年", [Math.round(days / 365.25)]);
   const when = registered ? t("登记 {0}", [registered]) : "";
 
-  if (days == null) {
-    return {
-      id: "freshness",
-      label: t("网段"),
-      value: t("登记日期未知"),
-      hint: t("注册局没有可用的网段登记日，不加分"),
-      tone: "neutral",
-    };
-  }
-
-  if (scored.freshness > 0) {
-    return {
-      id: "freshness",
-      label: t("网段"),
-      value: t("较新网段 +{0}", [scored.freshness]),
-      hint: [t("已登记 {0}", [age]), when, t("住宅 / ISP 网段加分")].join(
-        " · ",
-      ),
-      tone: "good",
-    };
-  }
-
-  if (days <= 730 && !scored.freshnessEligible) {
-    return {
-      id: "freshness",
-      label: t("网段"),
-      value: t("网段较新"),
-      hint: [t("已登记 {0}", [age]), when, t("机房 / 代理 / 滥用不加分")].join(
-        " · ",
-      ),
-      tone: "warn",
-    };
-  }
-
   return {
     id: "freshness",
     label: t("网段"),
-    value: t("长期登记"),
-    hint: [t("已登记 {0}", [age]), when, t("超过两年不加分")].join(" · "),
+    value:
+      days == null || days < 0
+        ? t("登记日期未知")
+        : days <= 730
+          ? t("网段较新")
+          : t("长期登记"),
+    hint: [
+      days != null && days >= 0 ? t("已登记 {0}", [age]) : "",
+      when,
+      t("资源登记信息，不参与信誉评分"),
+    ]
+      .filter(Boolean)
+      .join(" · "),
     tone: "neutral",
   };
 }
@@ -1384,20 +1549,16 @@ export function assessQuality(
   const pending = options.pending === true && !intel;
   const sources = buildSources(coffee, intel, pending);
   const votes = sources.filter((item) => item.status === "ready");
-  const kind = decideKind(votes, coffee);
-  const vpnSplit =
-    votes.some((item) => item.vpn === true) &&
-    votes.some((item) => item.vpn === false);
-  const untypedSplit =
-    votes.some((item) => item.untypedAnonymous) &&
-    votes.some((item) => item.vpn === false);
-  const homeLike =
-    votes.some(
-      (item) => item.usage === "residential" || item.usage === "isp",
-    ) || usageConflict(coffee).length > 1;
+  const publicService = identifyPublicService(coffee.ip, options.now);
+  const isPublicService =
+    coffee.is_public_service === true ||
+    publicService != null ||
+    votes.some((source) => source.usage === "public-service");
+  const kind = decideKind(votes, coffee, isPublicService);
   const scored = scoreQuality(coffee, sources, {
     prefix: intel ? (intel.prefix ?? null) : undefined,
     now: options.now,
+    publicService: isPublicService,
   });
   const band = scored.band;
   const terminal = options.terminal ?? null;
@@ -1405,25 +1566,41 @@ export function assessQuality(
 
   return {
     kind,
-    kindLabel: kindLabel(kind, vpnSplit || untypedSplit || homeLike),
+    kindLabel: kindLabel(kind),
     band,
     bandLabel: bandLabel(band),
-    summary: buildSummary(kind, votes, coffee, terminal, selfLookup),
+    summary: buildSummary(
+      kind,
+      votes,
+      coffee,
+      terminal,
+      selfLookup,
+      publicService,
+    ),
+    ...conciseConclusion(kind, votes, scored),
+    keyEvidence: keyEvidence(kind, votes, publicService),
     pending,
     sourcesReady: votes.length,
     sourcesTotal: sources.length,
     score: scored.value,
     scoreReference: scored.reference,
+    scoreStatus: scored.status,
+    scoreMissingSources: scored.missingSources,
+    scoreProfile: scored.profile,
+    evidence: scored.evidence,
+    checkedAt:
+      intel?.checkedAt && Number.isFinite(Date.parse(intel.checkedAt))
+        ? intel.checkedAt
+        : undefined,
     scoreBreakdown: {
       reputation: scored.reputation,
       anonymity: scored.anonymity,
       usage: scored.usage,
-      freshness: scored.freshness,
       freshnessDays: scored.freshnessDays,
-      freshnessEligible: scored.freshnessEligible,
       prefixRegisteredAt: scored.prefixRegisteredAt,
       cap: scored.cap,
       uncapped: scored.uncapped,
+      effectiveWeights: scored.effectiveWeights,
     },
     network: networkDimension(kind, votes, coffee),
     reputation: reputationDimension(votes, scored),
@@ -1432,6 +1609,7 @@ export function assessQuality(
       ? runtimeDimension(coffee.ip, terminal, selfLookup)
       : undefined,
     terminalIp: terminal?.ip,
+    publicService,
     sources,
   };
 }

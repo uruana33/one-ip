@@ -24,15 +24,23 @@ export function TrustGauge({
   size = "sm",
   caption = t("质量分"),
   hint,
+  verdict: verdictOverride,
+  uncertain = false,
 }: {
   /** `null` when the source gave no usable score: shown as unknown, never 0. */
   score: number | null;
   size?: TrustGaugeSize;
   caption?: string;
   hint?: string;
+  verdict?: string;
+  uncertain?: boolean;
 }) {
-  const color = ipScoreColor(score);
-  const verdict = score == null ? t("数据不足") : bandLabel(score);
+  const color =
+    uncertain && score != null && score >= 40
+      ? "var(--warning)"
+      : ipScoreColor(score);
+  const verdict =
+    score == null ? t("数据不足") : (verdictOverride ?? bandLabel(score));
   const label = `${caption} ${score ?? "—"}，${verdict}`;
 
   if (score == null)

@@ -20,17 +20,17 @@ IP 查询、网络诊断与 AI 服务状态工具箱。
 
 **中文** · [English](README.en.md)
 
-[在线体验](https://ip.huzhihui.com/) · [GitHub](https://github.com/zhihui-hu/one-ip)
+[GitHub](https://github.com/uruana33/one-ip)
 
 社区友链：[LINUX DO](https://linux.do/) · 真诚、友善、团结、专业。
 
 点击下方按钮，一键部署到 Cloudflare。
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fzhihui-hu%2Fone-ip)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Furuana33%2Fone-ip)
 
 ## Cloudflare 部署教程
 
-1. [Fork 本项目](https://github.com/zhihui-hu/one-ip/fork)到你的 GitHub 账号。
+1. [Fork 本项目](https://github.com/uruana33/one-ip/fork)到你的 GitHub 账号。
 2. 登录 [Cloudflare 控制台](https://dash.cloudflare.com/)，进入 **Workers & Pages**，创建 Worker，选择导入 Git 仓库。
 3. 连接 GitHub，选择你的 `one-ip` Fork，生产分支填 `main`。
 4. 构建命令填 `pnpm build`，部署命令填 `pnpm deploy`。使用 Node.js 24 和 pnpm 10.32.1，根目录保持默认。
@@ -38,7 +38,7 @@ IP 查询、网络诊断与 AI 服务状态工具箱。
 
 项目使用 **Cloudflare Workers + Static Assets**，`/api/*` 接口需要 Worker。基础功能无需应用环境变量或 API Key。
 
-Workers Builds 会在 `main` 收到提交时构建和部署。上方按钮使用原项目地址；需要保留 Fork 关系和更新工作流时，请按教程导入你的 Fork。
+Workers Builds 会在 `main` 收到提交时构建和部署。上方按钮指向本仓库；需要自己的部署时，请按教程导入你的 Fork。
 
 ## 功能
 
@@ -61,18 +61,17 @@ Workers Builds 会在 `main` 收到提交时构建和部署。上方按钮使用
 部署此版本后，可通过 `GET /api/ip/health` 查询 IP 健康度，无需 API Key。
 
 ```bash
-# 当前请求的公网出口 IP，终端文本
-curl -fsS 'https://ip.huzhihui.com/api/ip/health?format=text'
+# 指定公网 IPv4，终端文本（本地 Worker 必须带 ip）
+curl -fsS 'http://127.0.0.1:8787/api/ip/health?ip=1.1.1.1&format=text'
 
 # 默认返回 JSON，便于脚本处理
-curl -fsS 'https://ip.huzhihui.com/api/ip/health'
+curl -fsS 'http://127.0.0.1:8787/api/ip/health?ip=1.1.1.1'
 
-# 指定公网 IPv4 或 IPv6
-curl -fsS 'https://ip.huzhihui.com/api/ip/health?ip=1.1.1.1'
-curl -fsS 'https://ip.huzhihui.com/api/ip/health?ip=2606:4700:4700::1111&format=text'
+# IPv6
+curl -fsS 'http://127.0.0.1:8787/api/ip/health?ip=2606:4700:4700::1111&format=text'
 ```
 
-自部署时替换域名。本地开发使用 `http://127.0.0.1:8787`，必须指定 `ip`。省略 `ip` 时使用 Cloudflare 识别的本次请求出口；经过代理时会查询代理出口。
+部署后把主机名换成你的域名。线上可省略 `ip`，接口会使用 Cloudflare 识别的本次请求出口；经过代理时会查询代理出口。
 
 返回 `ip`、`source`、`checked_at`、`score`、`status`、位置、ISP、ASN 和 `flags`（住宅、数据中心、移动网络、VPN、代理、Tor、爬虫、滥用标记）。信誉分范围 0–100，越高越好；与网页相同，75–100 为 `good`、45–74 为 `moderate`、低于 45 为 `poor`。缺失或无效分数返回 `score: null`、`status: "unknown"`；缺失标记返回 `null`，不视为 `false`。
 
@@ -92,24 +91,9 @@ curl -fsS 'https://ip.huzhihui.com/api/ip/health?ip=2606:4700:4700::1111&format=
   </tr>
 </table>
 
-## Fork 更新
+## 同步 Fork
 
-在 GitHub 仓库页面点击 **Sync fork → Update branch**。有代码改动时检查差异，通过合并处理冲突。
-
-定时同步使用 `Sync upstream` 工作流：
-
-1. 在 Fork 的 Actions 页面启用工作流。
-2. 在 Settings → Secrets and variables → Actions → **Variables** 添加 `AUTO_SYNC_UPSTREAM=true`。
-3. 工作流在每天 UTC 04:23 检查更新。Actions 页面提供运行入口。
-
-支持范围是从 `zhihui-hu/one-ip` 创建的 Fork，无需个人访问令牌（PAT）。工作流通过 GitHub 的 `merge-upstream` 接口合并更新，遇到冲突时停止，保留你的提交。需要审核更新时，使用 GitHub 的 Sync fork。
-
-- **Workers Builds**：连接 Fork 的生产分支，在 Cloudflare 构建历史中检查同步提交的部署记录。
-- **GitHub Actions 部署**：同步产生更新时，工作流触发部署任务。`GITHUB_TOKEN` 产生的推送不会触发普通 `push` 工作流。
-- 分支保护阻止合并时，通过 PR 处理。
-- Fork 的定时工作流需要启用。公开仓库 60 天无活动可能导致 GitHub 停用定时任务，恢复入口在 Actions 页面。
-
-参考：[同步 Fork](https://docs.github.com/en/pull-requests/how-tos/work-with-forks/syncing-a-fork)、[GITHUB_TOKEN 触发规则](https://docs.github.com/en/actions/concepts/security/github_token)、[定时工作流停用规则](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows)。
+如果你 Fork 了本仓库，在 GitHub 仓库页点击 **Sync fork → Update branch** 即可拉取更新。有本地改动时先看差异，冲突用合并处理。
 
 ## GitHub Actions 部署（可选）
 

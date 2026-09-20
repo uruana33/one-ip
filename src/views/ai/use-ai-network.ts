@@ -30,12 +30,17 @@ export type ExitInfo = {
   source?: DefaultExitSource;
   pending: boolean;
   failed: boolean;
+  configured: boolean;
+  stale?: boolean;
+  updatedAt?: number;
 };
 
 export type AiNetworkItem = {
   domain: string;
   platform: AiPlatform | undefined;
   result: AiProbeResult | undefined;
+  resultStale?: boolean;
+  resultUpdatedAt?: number;
   exit: ExitInfo;
   /** Cross-checked default egress; present only on platforms without a trace endpoint. */
   defaultExit?: DefaultExitResult;
@@ -94,7 +99,8 @@ export function useAiNetworkQueries(
     if (!platform) {
       return {
         pending: false,
-        failed: true,
+        failed: false,
+        configured: false,
       };
     }
     if (platform?.traceDomain) {
@@ -104,6 +110,9 @@ export function useAiNetworkQueries(
         countryCode: query.data?.country_code,
         pending: query.isFetching,
         failed: query.isError,
+        configured: true,
+        stale: query.isRefetchError,
+        updatedAt: query.dataUpdatedAt || undefined,
       };
     }
     return {
@@ -112,6 +121,9 @@ export function useAiNetworkQueries(
       pending: needsDefaultExit && defaultExitQuery.isFetching,
       failed:
         defaultExitQuery.isError || defaultExitQuery.data?.verdict === "failed",
+      configured: true,
+      stale: defaultExitQuery.isRefetchError,
+      updatedAt: defaultExitQuery.dataUpdatedAt || undefined,
     };
   });
   const lookups = useQueries({
@@ -134,16 +146,22 @@ export function useAiNetworkQueries(
     domain,
     platform: platforms[index],
     result: probeQuery.data?.[index],
+    resultStale: probeQuery.isRefetchError && Boolean(probeQuery.data),
+    resultUpdatedAt: probeQuery.dataUpdatedAt || undefined,
     exit: exitInfos[index],
-    defaultExit: platforms[index]?.traceDomain
-      ? undefined
-      : defaultExitQuery.data,
+    defaultExit:
+      platforms[index] && !platforms[index].traceDomain
+        ? defaultExitQuery.data
+        : undefined,
     lookup: lookups[index],
   }));
   if (probeQuery.data)
-    items.sort(
-      (a, b) => (a.result?.median ?? Infinity) - (b.result?.median ?? Infinity),
-    );
+    items.sort((a, b) => {
+      const aDown = a.result?.median == null;
+      const bDown = b.result?.median == null;
+      if (aDown !== bDown) return aDown ? -1 : 1;
+      return (a.result?.median ?? Infinity) - (b.result?.median ?? Infinity);
+    });
 
   const refresh = async () => {
     setRefreshing(true);

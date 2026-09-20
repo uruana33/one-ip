@@ -124,7 +124,7 @@ function origin(d: CoffeeIp): Verdict {
     d.countryCode.toLowerCase() === d.registered_country_code.toLowerCase();
   return {
     ...base,
-    value: same ? t("原生 IP") : t("注册地不同"),
+    value: same ? t("注册国与定位国一致") : t("注册地不同"),
     tone: same ? "good" : "warn",
     hint: same
       ? t("注册国家与定位国家一致。")

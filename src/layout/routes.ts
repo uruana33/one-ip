@@ -4,7 +4,6 @@ import { aiPlatforms } from "@/views/ai/platforms";
 export const navigationRoutes = [
   { value: "/", label: t("首页"), short: t("首页") },
   { value: "/network/ip", label: t("地址查询"), short: t("查询") },
-  { value: "/network/subdomains", label: t("子域名查询"), short: t("子域") },
   { value: "/ai/", label: t("AI 检测"), short: "AI" },
   { value: "/status/", label: t("服务状态"), short: t("状态") },
   { value: "/network/egress", label: t("出口检测"), short: t("出口") },
@@ -26,6 +25,7 @@ export const legacyRoutes: Record<string, string> = {
   "/whois": "/network/whois",
   "/link": "/network/ip",
   "/network/link": "/network/ip",
+  "/network/subdomains": "/network/ip",
   "/ping": "/network/ping",
   "/cdn": "/network/egress",
   "/dns-exit": "/network/egress",
@@ -53,7 +53,7 @@ export function activeNavigationRoute(pathname: string) {
     path === "/network/connectivity"
   )
     return "/network/ip";
-  if (path === "/network/subdomains") return "/network/subdomains";
+  if (path === "/network/subdomains") return "/network/ip";
   for (const [group, routes] of Object.entries(toolGroups)) {
     if (path === `/${group}` || routes.some((route) => route.path === path))
       return landing[group] ?? `/${group}/`;

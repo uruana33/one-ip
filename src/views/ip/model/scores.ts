@@ -94,7 +94,7 @@ function usageHint(d: CoffeeIp, verdict: Verdict) {
 }
 
 function originHint(d: CoffeeIp, verdict: Verdict) {
-  if (verdict.value === t("原生 IP")) return t("注册国与定位国一致");
+  if (verdict.value === t("注册国与定位国一致")) return t("注册国与定位国一致");
   if (verdict.value === t("注册地不同"))
     return t("注册于 {0}，定位在 {1}", [
       d.registered_country ?? d.registered_country_code?.toUpperCase(),

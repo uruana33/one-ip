@@ -12,7 +12,8 @@ export interface Geo {
   source?: string;
 }
 export interface Risk {
-  available: boolean;
+  /** undefined means the provider returned no risk fields to evaluate. */
+  available: boolean | undefined;
   source?: string;
   reason?: string;
   fraud_score?: number;

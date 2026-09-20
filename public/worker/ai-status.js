@@ -156,12 +156,12 @@ export async function getAiStatus(service) {
     );
   }
   if (service.id === "32") {
-    // Prefer the official RSS when reachable; fall back to reachability probing
-    // when the upstream blocks datacenter egress (e.g. TLS reset).
+    // Prefer the official RSS when reachable. A fallback probe is transport
+    // evidence only, so it must never be rendered as official health.
     try {
       return parseDeepSeek(await pageText(service.url));
     } catch {
-      return getDeepSeekStatus();
+      return getDeepSeekStatus({ rssUnavailable: true });
     }
   }
   if (service.id === "31") {
@@ -190,9 +190,14 @@ export async function getAiStatus(service) {
   return upstream(service.url);
 }
 
-async function probeReachability(targets, okDescription, failDescription) {
+async function probeReachability(
+  targets,
+  okDescription,
+  failDescription,
+  { rssUnavailable = false, allowNoResponse = false } = {},
+) {
   const results = await Promise.allSettled(
-    targets.map(async ({ url }) => {
+    targets.map(async ({ url, label }) => {
       const response = await fetch(url, {
         signal: AbortSignal.timeout(10_000),
         redirect: "manual",
@@ -200,24 +205,72 @@ async function probeReachability(targets, okDescription, failDescription) {
           "User-Agent": "IP-Tools/1.0",
         },
       });
-      // Any HTTP response (even 4xx/5xx) proves the endpoint is reachable.
       await response.body?.cancel();
+      return {
+        label,
+        url,
+        transport: "response",
+        httpStatus: response.status,
+      };
     }),
   );
-  const reachable = results.filter(
-    (result) => result.status === "fulfilled",
+  const endpoints = results.map((result, index) =>
+    result.status === "fulfilled"
+      ? result.value
+      : {
+          label: targets[index].label,
+          url: targets[index].url,
+          transport: "failed",
+        },
+  );
+  const reachable = endpoints.filter(
+    (endpoint) => endpoint.transport === "response",
   ).length;
-  if (reachable === 0) throw new HttpError(502, failDescription);
+  if (reachable === 0 && !allowNoResponse)
+    throw new HttpError(502, failDescription);
+  if (reachable === 0) {
+    return {
+      status: {
+        indicator: "unknown",
+        description: `${rssUnavailable ? "官方 RSS 读取失败；" : ""}端点均不可达，无法评估业务状态`,
+      },
+      evidence: {
+        kind: "reachability",
+        label: "端点可达性探测",
+        endpoints,
+        note: "官方状态源和参考端点均未返回响应。",
+      },
+    };
+  }
+  const httpStatuses = endpoints
+    .filter((endpoint) => endpoint.transport === "response")
+    .map((endpoint) => endpoint.httpStatus);
+  const hasServerError = httpStatuses.some((status) => status >= 500);
+  const hasFailedEndpoint = endpoints.some(
+    (endpoint) => endpoint.transport === "failed",
+  );
+  const description = hasServerError
+    ? `${rssUnavailable ? "官方 RSS 读取失败；" : ""}收到 HTTP ${httpStatuses.filter((status) => status >= 500).join("、")} 响应，业务状态未知；5xx 只表示端点异常，不能据此判断整个平台故障`
+    : hasFailedEndpoint
+      ? `${rssUnavailable ? "官方 RSS 读取失败；" : ""}部分端点已响应，部分不可达；业务状态未知`
+      : `${rssUnavailable ? "官方 RSS 读取失败；" : ""}端点可达，但未提供官方运行状态`;
   return {
     status: {
-      indicator: reachable === targets.length ? "none" : "minor",
-      description:
-        reachable === targets.length ? okDescription : "部分端点不可达",
+      indicator: "unknown",
+      description,
+    },
+    evidence: {
+      kind: "reachability",
+      label: "端点可达性探测",
+      endpoints,
+      note: rssUnavailable
+        ? "官方 RSS 未能读取，以下结果仅供连通性参考。"
+        : "收到 HTTP 响应只表示端点可达，不代表官方业务健康。",
     },
   };
 }
 
-export async function getDeepSeekStatus() {
+export async function getDeepSeekStatus(options = {}) {
   const targets = [
     { url: "https://api.deepseek.com/", label: "API 网关" },
     { url: "https://www.deepseek.com/", label: "官网" },
@@ -226,6 +279,7 @@ export async function getDeepSeekStatus() {
     targets,
     "DeepSeek 服务可访问",
     "DeepSeek 服务不可达",
+    { ...options, allowNoResponse: options.rssUnavailable === true },
   );
 }
 

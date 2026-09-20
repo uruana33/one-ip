@@ -4,76 +4,81 @@ import { LatencyBadge } from "@/components/latency-badge";
 import { NumberTicker } from "@/components/number-ticker";
 import { ActionButton, PageHeading, Pending } from "@/components/toolkit";
 import { useSortAnimation } from "@/hooks/use-sort-animation";
-import { t } from "@/i18n";
+import { locale, t } from "@/i18n";
 import { CampCard } from "./camp-card";
+import { summarizeCampResults } from "./fleet-stats";
 import { aiPlatforms, type AiCamp } from "./platforms";
 import { useAiNetworkQueries, type AiNetworkItem } from "./use-ai-network";
 
 type CampStats = {
-  reachable: number;
+  responded: number;
+  unconfirmed: number;
+  restricted: number;
   total: number;
   avg: number | null;
   fastest: AiNetworkItem | undefined;
 };
 
 function campStats(items: AiNetworkItem[], pending: boolean): CampStats {
-  const reachableItems = pending
+  const responseItems = pending
     ? []
-    : items.filter((item) => item.result?.median != null);
-  const medians = reachableItems.map((item) => item.result!.median!);
+    : items.filter(
+        (item) =>
+          item.result?.status === "response" && item.result.median != null,
+      );
+  const summary = summarizeCampResults(
+    pending
+      ? []
+      : items.map((item) => ({
+          median: item.result?.median,
+          status: item.result?.status ?? "unknown",
+        })),
+  );
   return {
-    reachable: reachableItems.length,
-    total: items.length,
-    avg: medians.length
-      ? Math.round(
-          medians.reduce((sum, value) => sum + value, 0) / medians.length,
-        )
-      : null,
-    fastest: reachableItems[0],
+    ...summary,
+    fastest: responseItems[0],
   };
-}
-
-function leadingCamp(us: CampStats, cn: CampStats): AiCamp | null {
-  const usRatio = us.total ? us.reachable / us.total : 0;
-  const cnRatio = cn.total ? cn.reachable / cn.total : 0;
-  if (usRatio !== cnRatio) return usRatio > cnRatio ? "us" : "cn";
-  if (us.avg != null && cn.avg != null && us.avg !== cn.avg)
-    return us.avg < cn.avg ? "us" : "cn";
-  return null;
 }
 
 function CampScore({
   camp,
   stats,
   pending,
-  leading,
 }: {
   camp: AiCamp;
   stats: CampStats;
   pending: boolean;
-  leading: boolean;
 }) {
   return (
     <div className="ai-camp-score" data-camp={camp}>
       <div className="ai-camp-score-title">
         <CountryFlag code={camp} />
         <span>{camp === "us" ? t("美国阵营") : t("中国阵营")}</span>
-        {leading ? (
-          <span className="ai-tag ai-tag-good">{t("领先")}</span>
-        ) : null}
       </div>
       <div className="ai-camp-score-metrics">
         <span className="ai-camp-score-metric">
-          <span className="ai-fleet-stat-label">{t("可达")}</span>
+          <span className="ai-fleet-stat-label">{t("已响应")}</span>
           <span className="ai-fleet-stat-value">
             {pending ? (
               <Pending />
             ) : (
               <>
-                <NumberTicker value={stats.reachable} />
+                <NumberTicker value={stats.responded} />
                 <span className="ai-fleet-stat-total">/{stats.total}</span>
               </>
             )}
+          </span>
+        </span>
+        <span className="ai-camp-score-metric">
+          <span className="ai-fleet-stat-label">{t("未确认")}</span>
+          <span className="ai-fleet-stat-value">
+            {pending ? <Pending /> : <NumberTicker value={stats.unconfirmed} />}
+          </span>
+        </span>
+        <span className="ai-camp-score-metric">
+          <span className="ai-fleet-stat-label">{t("受限")}</span>
+          <span className="ai-fleet-stat-value">
+            {pending ? <Pending /> : <NumberTicker value={stats.restricted} />}
           </span>
         </span>
         <span className="ai-camp-score-metric">
@@ -136,7 +141,9 @@ function CampSection({
             <Pending />
           ) : (
             <>
-              <span>{t("可达 {0}/{1}", [stats.reachable, stats.total])}</span>
+              <span>{t("已响应 {0}/{1}", [stats.responded, stats.total])}</span>
+              <span>{t("未确认 {0}", [stats.unconfirmed])}</span>
+              <span>{t("受限 {0}", [stats.restricted])}</span>
               {stats.avg != null ? (
                 <span>{t("平均 {0}ms", [stats.avg])}</span>
               ) : null}
@@ -161,7 +168,6 @@ export function AiFleetBoard() {
   const cnItems = items.filter((item) => item.platform?.camp === "cn");
   const us = campStats(usItems, pending);
   const cn = campStats(cnItems, pending);
-  const leading = pending ? null : leadingCamp(us, cn);
 
   return (
     <div className="module-overview ai-fleet space-y-4">
@@ -184,22 +190,19 @@ export function AiFleetBoard() {
         }
       />
       <div className="ai-versus-scoreboard" aria-busy={busy}>
-        <CampScore
-          camp="us"
-          stats={us}
-          pending={pending}
-          leading={leading === "us"}
-        />
+        <CampScore camp="us" stats={us} pending={pending} />
         <div className="ai-versus-mark" aria-hidden="true">
           <span>VS</span>
         </div>
-        <CampScore
-          camp="cn"
-          stats={cn}
-          pending={pending}
-          leading={leading === "cn"}
-        />
+        <CampScore camp="cn" stats={cn} pending={pending} />
       </div>
+      {probeQuery.isRefetchError && probeQuery.dataUpdatedAt ? (
+        <p className="small muted">
+          {t("上次结果 · {0}", [
+            new Date(probeQuery.dataUpdatedAt).toLocaleString(locale),
+          ])}
+        </p>
+      ) : null}
       <div className="ai-camp-versus">
         <CampSection camp="us" items={usItems} pending={pending} />
         <div className="ai-camp-divider" aria-hidden="true">

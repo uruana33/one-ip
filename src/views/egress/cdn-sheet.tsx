@@ -17,7 +17,7 @@ export function CdnFamilyTitle({ lane }: { lane: CdnLane }) {
 
 export function CdnFamilyDescription({ lane }: { lane: CdnLane }) {
   const path =
-    lane.path === "domestic" ? t("HTTP 出口 · 国内") : t("HTTP 出口 · 海外");
+    lane.path === "domestic" ? t("国内 CDN 来源") : t("海外 CDN 来源");
   return (
     <>
       <span className="egress-sheet-sub">{path}</span>

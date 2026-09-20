@@ -14,8 +14,8 @@ import IpPanel from "@/views/ip";
 import { IP_LOOKUP_HISTORY_KEY } from "@/views/ip/hooks/use-ip-lookup";
 import { WHOIS_HISTORY_KEY } from "@/views/whois";
 import { useQueryClient } from "@tanstack/react-query";
+import { FileText, Gauge, MapPin } from "lucide-react";
 import { classifyLookup, LOOKUP_EXAMPLES } from "./classify.ts";
-import { LookupGuide } from "./guide";
 import { lookupLocation, type LookupView } from "./href.ts";
 import { DomainResult } from "./result-frame";
 
@@ -178,12 +178,6 @@ export default function LookupPage() {
       ) : (
         <article className="ip-folio ip-folio-idle">
           <header className="ip-folio-mast">
-            <div className="ip-folio-head">
-              <p className="ip-folio-kicker">{t("地址查询")}</p>
-              <p className="ip-folio-dek">
-                {t("输入 IP 或网站，一次看清位置、注册信息和各地延迟")}
-              </p>
-            </div>
             <h1 className="sr-only">{t("地址查询")}</h1>
             <div className="ip-folio-query">
               <div className="ip-folio-query-field">{form}</div>
@@ -208,8 +202,21 @@ export default function LookupPage() {
               </div>
               <RecentLookups onPick={submit} />
             </div>
+            <div className="ip-folio-idle-features" aria-hidden="true">
+              <span>
+                <MapPin className="size-3.5" />
+                {t("位置归属")}
+              </span>
+              <span>
+                <FileText className="size-3.5" />
+                {t("注册信息")}
+              </span>
+              <span>
+                <Gauge className="size-3.5" />
+                {t("各地延迟")}
+              </span>
+            </div>
           </header>
-          <LookupGuide />
         </article>
       )}
     </div>

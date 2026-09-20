@@ -21,7 +21,7 @@ test('adaptCoffee tolerates a response that carries nothing but an address', () 
   assert.equal(result.geo.latitude, undefined);
   assert.equal(result.geo.longitude, undefined);
   assert.equal(result.geo.source, 'Net.Coffee');
-  assert.equal(result.risk.available, true);
+  assert.equal(result.risk.available, undefined);
 });
 
 test('adaptCoffee maps crawler and abuser flags onto the shared risk contract', () => {

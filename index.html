@@ -28,8 +28,24 @@
         return;
       }
       try {
-        var theme = localStorage.getItem("theme") || "system";
-        var dark = theme === "dark" || (theme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        var stored = localStorage.getItem("theme");
+        var theme = "paper";
+        if (stored === "light") theme = "paper";
+        else if (stored === "dark") theme = "ink";
+        else if (
+          stored === "paper" ||
+          stored === "ink" ||
+          stored === "parchment" ||
+          stored === "chart" ||
+          stored === "ember"
+        )
+          theme = stored;
+        else
+          theme = window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "ink"
+            : "paper";
+        var dark = theme === "ink" || theme === "ember";
+        root.setAttribute("data-theme", theme);
         root.classList.toggle("dark", dark);
         root.style.colorScheme = dark ? "dark" : "light";
         ["color", "radius", "layout", "font-size"].forEach(function (key) {

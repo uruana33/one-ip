@@ -21,6 +21,48 @@ export function isPublicCandidate(ip: string): boolean {
   return Boolean(normalizePublicIp(ip));
 }
 
+export function compareStunEndpointFamilies(
+  rows: readonly Pick<
+    RtcResult,
+    "ip" | "endpoint" | "public" | "candidateType"
+  >[],
+) {
+  const byFamily = new Map<number, Map<string, Set<string>>>();
+  for (const row of rows) {
+    if (
+      !row.public ||
+      (row.candidateType !== "srflx" && row.candidateType !== "prflx") ||
+      !row.endpoint
+    )
+      continue;
+    const normalized = normalizePublicIp(row.ip);
+    if (!normalized) continue;
+    const endpoints = byFamily.get(normalized.version) ?? new Map();
+    const ips = endpoints.get(row.endpoint) ?? new Set<string>();
+    ips.add(normalized.ip);
+    endpoints.set(row.endpoint, ips);
+    byFamily.set(normalized.version, endpoints);
+  }
+  for (const endpoints of byFamily.values()) {
+    if (endpoints.size < 2) continue;
+    const signatures = new Set(
+      [...endpoints.values()].map((ips) => [...ips].sort().join(",")),
+    );
+    if (signatures.size > 1) return true;
+  }
+  return false;
+}
+
+export function sameIpFamily(
+  left: string | undefined,
+  right: string | undefined,
+) {
+  if (!left || !right) return false;
+  const leftVersion = normalizePublicIp(left)?.version;
+  const rightVersion = normalizePublicIp(right)?.version;
+  return leftVersion !== undefined && leftVersion === rightVersion;
+}
+
 function parseCandidate(candidate: RTCIceCandidate, endpointUrl: string) {
   const fields = candidate.candidate.trim().split(/\s+/);
   const ip = candidate.address ?? fields[4];
@@ -141,16 +183,7 @@ export async function runWebRtc(_: void, signal: AbortSignal) {
       (row.candidateType === "srflx" || row.candidateType === "prflx"),
   );
   const publicIps = new Set(publicResults.map((row) => row.ip));
-  const byEndpoint = new Map<string, Set<string>>();
-  for (const row of publicResults) {
-    const set = byEndpoint.get(row.endpoint ?? "unknown") ?? new Set<string>();
-    set.add(row.ip);
-    byEndpoint.set(row.endpoint ?? "unknown", set);
-  }
-  const endpointSets = [...byEndpoint.values()].map((set) =>
-    [...set].sort().join(","),
-  );
-  const splitTunnel = new Set(endpointSets).size > 1;
+  const splitTunnel = compareStunEndpointFamilies(publicResults);
   const report = await endpoint<{ httpIp?: string }>("/webrtc/report", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -174,7 +207,10 @@ export async function runWebRtc(_: void, signal: AbortSignal) {
   }).catch(() => undefined);
   const effectiveBaseline = report?.httpIp ?? baseline?.ip;
   const effectiveLeakIps = [...publicIps].filter(
-    (ip) => ip !== effectiveBaseline,
+    (ip) => sameIpFamily(ip, effectiveBaseline) && ip !== effectiveBaseline,
+  );
+  const comparablePublicResults = publicResults.filter((row) =>
+    sameIpFamily(row.ip, effectiveBaseline),
   );
   const udpBlocked = Boolean(
     effectiveBaseline && candidates.length > 0 && publicResults.length === 0,
@@ -182,17 +218,22 @@ export async function runWebRtc(_: void, signal: AbortSignal) {
   const different = effectiveLeakIps.length > 0;
   const verdict = !effectiveBaseline
     ? t("已采集到 UDP 出口，但 HTTP 基准获取失败，无法判断是否一致。")
-    : splitTunnel
-      ? t("UDP 与 HTTPS 走了不同出口，可能存在分流或 WebRTC 泄漏。")
-      : different
-        ? t("发现与 HTTP 出口不同的 UDP 地址，请检查代理和 VPN 分流规则。")
+    : different
+      ? t("观测到不同 UDP 地址，与 HTTP 出口对照不一致。")
+      : splitTunnel
+        ? t("不同 STUN 端点返回了不同 UDP 地址，请结合 IP 族核对路由。")
         : udpBlocked
           ? t("HTTPS 正常但未发现公网 STUN 地址，UDP 可能已被阻断。")
           : publicResults.length === 0
             ? t("未采集到公网候选地址，不能据此判定安全。")
-            : t("本次采样的公网 UDP 出口与 HTTP 出口一致。");
+            : comparablePublicResults.length === 0
+              ? t("STUN 只返回了不同 IP 族地址，无法与 HTTP 对照判断。")
+              : t("本次采样的公网 UDP 出口与 HTTP 出口一致。");
   return {
-    baseline: report?.httpIp ? { ...baseline, ip: report.httpIp } : baseline,
+    baseline:
+      report?.httpIp && baseline?.ip !== report.httpIp
+        ? { ip: report.httpIp }
+        : baseline,
     results,
     verdict,
     different,

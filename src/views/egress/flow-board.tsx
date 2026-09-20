@@ -91,15 +91,15 @@ export function EgressFlowBoard({
   ];
   const verdict =
     summary.exitCount > 1
-      ? t("分流已生效")
+      ? t("观察到多个出口")
       : summary.exitCount === 1
-        ? t("同一出口")
+        ? t("已读站点使用同一出口")
         : pending
           ? t("正在观测出口")
           : t("还没有读到出口");
 
   return (
-    <FlowStage className="egress-flow cyber-cockpit-card hud-frame">
+    <FlowStage className="egress-flow cyber-cockpit-card">
       <div className="egress-flow-toolbar">
         <div className="egress-flow-kicker">
           <span
@@ -116,7 +116,7 @@ export function EgressFlowBoard({
             {verdict}
           </span>
           <p className="egress-flow-lead">
-            {t("本机在上，出口分叉下去，站点落在各自枝上。同一颜色走同一条。")}
+            {t("按本轮站点回显的 IP 分组；不同地址不直接证明代理规则生效。")}
           </p>
         </div>
         {action ? <div className="egress-flow-actions">{action}</div> : null}

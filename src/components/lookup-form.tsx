@@ -50,7 +50,6 @@ export function LookupForm({
           <Container
             className={cn(
               grouped && "lookup-input-group",
-              grouped && tone !== "display" && "h-9",
               !grouped && "lookup-form",
               tone === "display" && "lookup-form-display",
             )}
@@ -75,7 +74,7 @@ export function LookupForm({
             {grouped ? (
               <InputGroupAddon align="inline-end">
                 <ActionButton
-                  className="h-7 min-w-14 px-3"
+                  className="h-8 min-w-14 px-3"
                   size="sm"
                   type="submit"
                   busy={busy}

@@ -51,12 +51,12 @@ export function IpReputationScale({
 }: {
   profile: ReturnType<typeof ipProfile>;
 }) {
-  const { resolvedTheme } = useTheme();
+  const { scheme } = useTheme();
   const graph = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const element = graph.current;
     if (!element) return;
-    const dark = resolvedTheme === "dark" || profile.score === 100;
+    const dark = scheme === "dark" || profile.score === 100;
     const accent = dark ? "#f3ecdf" : "#20252c";
     const spectrum = ["#cd3832", "#ed8557", "#edc647", "#64c582", "#249139"];
     const muted = dark ? "#b6ad9c" : "#64748b";
@@ -153,7 +153,7 @@ export function IpReputationScale({
       observer.disconnect();
       chart.dispose();
     };
-  }, [profile, resolvedTheme]);
+  }, [profile, scheme]);
   return (
     <div
       ref={graph}

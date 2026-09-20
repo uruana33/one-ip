@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { probeAiDomain } from "../src/views/ai/probe.ts";
+import { probeAiDomain, probeCoverage } from "../src/views/ai/probe.ts";
 
 test("Claude and Perplexity read and validate same-domain trace responses", async () => {
   const original = globalThis.fetch;
@@ -59,9 +59,21 @@ test("detail probes support a bounded number of samples and summarize successful
     assert.equal(result.samples.filter((sample) => sample < 0).length, 1);
     assert.ok(result.median >= 0);
     assert.equal(result.status, "response");
+    assert.deepEqual(probeCoverage(result), { successful: 2, total: 3, partial: true });
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("probe coverage keeps partial responses distinguishable from a complete sample", () => {
+  assert.deepEqual(
+    probeCoverage({ samples: [42, -1, 55], failures: 1 }),
+    { successful: 2, total: 3, partial: true },
+  );
+  assert.deepEqual(
+    probeCoverage({ samples: [42, 55], failures: 0 }),
+    { successful: 2, total: 2, partial: false },
+  );
 });
 
 test("restricted status is retained when every readable sample is denied", async () => {

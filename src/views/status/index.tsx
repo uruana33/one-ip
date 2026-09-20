@@ -15,6 +15,11 @@ import { getStatus } from "./api";
 import type { ServiceStatus } from "./api";
 import { statusLoadBatch, statusLoadIds } from "./loading";
 import { statusOrder } from "./order";
+import {
+  presentStatus,
+  presentSummary,
+  type StatusQuerySnapshot,
+} from "./presentation";
 import rawservices from "./services.json";
 
 const services = rawservices.map((item) => ({
@@ -22,14 +27,6 @@ const services = rawservices.map((item) => ({
   name: t(item.name),
   note: item.note ? t(item.note) : item.note,
 }));
-
-const labels: Record<string, string> = {
-  none: t("正常运行"),
-  minor: t("轻微故障"),
-  major: t("严重故障"),
-  critical: t("重大故障"),
-  maintenance: t("维护中"),
-};
 
 const GROUP_ORDER = [
   "AI",
@@ -68,7 +65,7 @@ type ServiceRow = (typeof services)[number] & {
 
 function severityRank(row: ServiceRow): number {
   if (!row.url) return 6;
-  switch (row.query.data?.status?.indicator) {
+  switch (indicatorOf(row)) {
     case "critical":
       return 0;
     case "major":
@@ -85,14 +82,24 @@ function severityRank(row: ServiceRow): number {
 }
 
 function indicatorOf(row: ServiceRow): string {
-  if (!row.url) return "none-integrated";
-  return row.query.data?.status?.indicator ?? "unknown";
+  return presentedOf(row).indicator;
 }
 
 function statusText(row: ServiceRow): string {
-  if (row.requested && row.url && row.query.isPending) return t("查询中…");
-  if (!row.url) return t("未接入");
-  return labels[row.query.data?.status?.indicator ?? ""] ?? t("待确认");
+  const presented = presentedOf(row);
+  return t(presented.textKey, presented.textValues);
+}
+
+function presentedOf(row: ServiceRow) {
+  const snapshot: StatusQuerySnapshot = {
+    url: row.url,
+    requested: row.requested,
+    isPending: row.query.isPending,
+    isError: row.query.isError,
+    isRefetchError: row.query.isRefetchError,
+    data: row.query.data,
+  };
+  return presentStatus(snapshot);
 }
 
 function SpectrumBar({ row }: { row: ServiceRow }) {
@@ -162,10 +169,12 @@ function FlipCard({
         </span>
         <span className="sw-flip-time">
           {fetchedAt
-            ? new Date(fetchedAt).toLocaleTimeString(locale, {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
+            ? t("读取于 {0}", [
+                new Date(fetchedAt).toLocaleTimeString(locale, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              ])
             : "——"}
         </span>
       </span>
@@ -216,14 +225,19 @@ export default function StatusPage() {
     (s) => filter === "" || filter === "全部" || s.group === filter,
   );
   const issueRows = rows
-    .filter((row) => statusOrder(row.query.data?.status?.indicator) === 0)
+    .filter((row) => statusOrder(indicatorOf(row)) === 0)
     .sort((a, b) => severityRank(a) - severityRank(b));
-  const healthyCount = rows.filter(
-    (row) => row.query.data?.status?.indicator === "none",
-  ).length;
-  const unknownCount = rows.filter(
-    (row) => statusOrder(row.query.data?.status?.indicator) === 2,
-  ).length;
+  const summary = presentSummary(
+    rows.map((row) => ({
+      url: row.url,
+      requested: row.requested,
+      isPending: row.query.isPending,
+      isError: row.query.isError,
+      isRefetchError: row.query.isRefetchError,
+      data: row.query.data,
+    })),
+  );
+  const { healthyCount, unknownCount } = summary;
   const groups = GROUP_ORDER.map((group) => ({
     group,
     items: allRows
@@ -235,18 +249,18 @@ export default function StatusPage() {
     <div className="status-wall">
       <PageHeading
         title={t("服务状态")}
-        description={t("各服务官方运行状态与故障事件")}
+        description={t("官方状态与端点探测（分开标注）")}
       />
-      <section className="sw-hero hud-frame">
+      <section className="sw-hero">
         <div className="sw-hero-top">
           <h2
             className={`sw-hero-state${issueRows.length > 0 ? " sw-hero-state-alert" : ""}`}
           >
-            {issueRows.length > 0
-              ? t("{0} 个服务需要关注", [issueRows.length])
-              : healthyCount > 0
-                ? t("全部服务运行正常")
-                : t("正在检测服务状态…")}
+            {t(summary.headlineKey, [
+              summary.headlineKey === "{0} 个服务需要关注"
+                ? issueRows.length
+                : unknownCount,
+            ])}
           </h2>
           <div className="sw-hero-counts">
             <span className="sw-count sw-count-ok">
@@ -350,7 +364,7 @@ export default function StatusPage() {
       <div className="sw-groups">
         {groups.map(({ group, items }) => {
           const issueCount = items.filter(
-            (row) => statusOrder(row.query.data?.status?.indicator) === 0,
+            (row) => statusOrder(indicatorOf(row)) === 0,
           ).length;
           const expanded = filter === "全部" || filter === group;
           const worst = items.length

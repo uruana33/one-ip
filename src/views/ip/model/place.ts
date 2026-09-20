@@ -217,9 +217,23 @@ export function consensusPlace(
   const winners = cityKey
     ? withCity.filter((vote) => vote.city && normCity(vote.city) === cityKey)
     : ready;
-  const region = pickField(winners, "region");
   const country = pickField(winners, "country");
-  const code = winners.find((vote) => vote.country_code)?.country_code;
+  const countryWinners = winners.filter(
+    (vote) =>
+      !country.value ||
+      !vote.country ||
+      normCountry(vote.country) === normCountry(country.value),
+  );
+  const region = pickField(countryWinners, "region");
+  const coordinateWinners = countryWinners.filter(
+    (vote) =>
+      !region.value ||
+      !vote.region ||
+      normRegion(vote.region) === normRegion(region.value),
+  );
+  const code = coordinateWinners.find(
+    (vote) => vote.country_code,
+  )?.country_code;
   const line =
     uniqueLine(city.value, region.value, country.value) || t("未知位置");
   return {
@@ -227,10 +241,13 @@ export function consensusPlace(
     region: region.value,
     country: country.value,
     country_code: code,
-    latitude: meanCoord(winners, "latitude"),
-    longitude: meanCoord(winners, "longitude"),
+    latitude: meanCoord(coordinateWinners, "latitude"),
+    longitude: meanCoord(coordinateWinners, "longitude"),
     line,
-    split: city.split,
+    split:
+      city.split ||
+      pickField(ready, "country").split ||
+      pickField(ready, "region").split,
     pending: pending && !intel,
     located: withCity.length,
     total: votes.length,

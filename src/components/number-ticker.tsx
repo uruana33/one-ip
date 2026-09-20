@@ -6,7 +6,7 @@ const defaultFormat = (value: number) => value.toFixed(0);
 export function NumberTicker({
   value,
   formatValue = defaultFormat,
-  duration = 0.5,
+  duration = 0.28,
   snap = 0.1,
   className,
 }: {

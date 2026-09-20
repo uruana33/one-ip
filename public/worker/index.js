@@ -12,7 +12,6 @@ import { startPing, pingResult, pingNodes } from "./ping.js";
 import { normalizeStatus } from "./service-status.js";
 import services from "./services.json";
 import { cachedStatus, STATUS_CACHE_CONTROL } from "./status-cache.js";
-import { lookupSubdomains } from "./subdomains.js";
 import { reportWebRtc } from "./webrtc.js";
 import { lookupRegistration } from "./whois.js";
 
@@ -31,6 +30,10 @@ async function loadServiceStatus(service) {
     : getAiStatus(service));
   return {
     ...normalizeStatus(data),
+    evidence: data.evidence ?? {
+      kind: "official",
+      label: "官方状态接口",
+    },
     fetchedAt: new Date().toISOString(),
     source: service.url,
   };
@@ -115,8 +118,6 @@ export default {
         });
       }
       if (path === "/map/config") return json(mapConfig(env));
-      if (path.startsWith("/subdomains/"))
-        return json(await lookupSubdomains(decodeURIComponent(path.slice(12))));
       if (path.startsWith("/whois/lookup/"))
         return json(
           await lookupRegistration(decodeURIComponent(path.slice(14))),

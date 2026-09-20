@@ -10,6 +10,7 @@ import {
   sameIp,
   evidenceState,
   qualityRating,
+  summarizeAccessScopes,
   summarizeHttp,
 } from "../src/views/ip/scenario-evidence.ts";
 import {
@@ -340,6 +341,35 @@ test("verified, split, changed and partially observed egress remain distinct", (
     ).scope,
     "different",
   );
+});
+test("scope summary exposes per-platform attribution without turning mismatch into failure", () => {
+  const verified = {
+    ...access(),
+    egressBefore: "1.1.1.1",
+    egressAfter: "1.1.1.1",
+    samples: access().samples.map((value) => ({
+      ...value,
+      observedIp: "1.1.1.1",
+    })),
+  };
+  const different = {
+    ...access(),
+    egressBefore: "8.8.8.8",
+    egressAfter: "8.8.8.8",
+  };
+  const pending = { ...access(), state: "running", samples: [] };
+  const result = summarizeAccessScopes(
+    [verified, different, access(), pending, undefined],
+    "1.1.1.1",
+    2100,
+  );
+  assert.deepEqual(result, {
+    ip: 1,
+    different: 1,
+    browser: 1,
+    measured: 3,
+  });
+  assert.equal(accessRating(different, "1.1.1.1", 2100).stars, 5);
 });
 test("a trace followed by unverified resource responses cannot attribute the whole round", () => {
   const evidence = {

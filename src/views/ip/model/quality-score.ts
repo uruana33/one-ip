@@ -1,25 +1,27 @@
 import { t } from "@/i18n";
 import {
-  freshnessBonus,
-  prefixAgeDays,
-  type PrefixAge,
-} from "@/views/ip/model/prefix-age";
+  anonymousHit,
+  anonymousNegative,
+  typedAnonymousHit,
+} from "@/views/ip/model/anonymity";
+import { prefixAgeDays, type PrefixAge } from "@/views/ip/model/prefix-age";
+import {
+  REQUIRED_ANONYMITY_SOURCES,
+  reputationApplies,
+  qualityProfile,
+} from "@/views/ip/model/quality-policy";
 import { parseAbuseRaw } from "@/views/ip/model/scores";
 import { usableScore } from "@/views/ip/model/verdict";
 import type { QualityBand, SourceEvidence, UsageClass } from "./quality";
 import type { CoffeeIp } from "../coffee";
 
 /**
- * Canonical IP quality score for this project.
- *
- * Output is 0–100, higher is cleaner. Ready sources vote; IPQS and AbuseIPDB
- * never vote. Numeric scales are mapped through each vendor's published bands
- * before mixing. VPN / proxy flags are not subtracted from Coffee trust
- * (that would double-count the anonymity dimension). Coffee abuser_score
- * values below 1 are rates, not 0–100 points.
- *
- * S = round(min(0.45 R + 0.35 A + 0.20 U + N, C))
- * N is 0–8 for a recently registered residential/ISP prefix, else 0.
+ * Site-specific reference index, not a calibrated risk probability.
+ * Vendor bands and these weights are heuristics; upstream sources may overlap.
+ * Available dimensions keep their relative weights. Unknowns have no numeric prior.
+ * S = round(min(sum(available w * dimension) / sum(available w), C)).
+ * Some reputation or anonymity evidence is required; usage alone is not quality.
+ * Registration age is context only and never changes the score.
  */
 export const QUALITY_WEIGHTS = {
   reputation: 0.45,
@@ -35,33 +37,30 @@ export const REPUTATION_SOURCE_WEIGHTS = {
   ip2location: 0.1,
 } as const;
 
-const ANON_SOURCE_IDS = new Set([
-  "coffee",
-  "ipinfo",
-  "ip2location",
-  "ipapi",
-  "scamalytics",
-  "proxycheck",
-]);
-
-const REPUTATION_PRIOR = 70;
-const MIN_SOURCES_FOR_FINAL = 3;
+export interface EvidenceCoverage {
+  reputation: string[];
+  anonymity: string[];
+  usage: string[];
+}
 
 export interface QualityScore {
   value: number | null;
   band: QualityBand;
   bandLabel: string;
   reference: boolean;
-  reputation: number;
-  anonymity: number;
-  usage: number;
-  uncapped: number;
-  freshness: number;
+  reputation: number | null;
+  anonymity: number | null;
+  usage: number | null;
+  uncapped: number | null;
   freshnessDays: number | null;
-  freshnessEligible: boolean;
   prefixRegisteredAt?: string;
   cap: number;
   sourcesUsed: number;
+  evidence: EvidenceCoverage;
+  status: "ready" | "provisional" | "unavailable";
+  effectiveWeights: Record<keyof typeof QUALITY_WEIGHTS, number>;
+  missingSources: string[];
+  profile: ReturnType<typeof qualityProfile>;
 }
 
 export function clampScore(value: number) {
@@ -124,7 +123,7 @@ export function coffeeReputation(coffee: CoffeeIp): number | null {
     (hundred != null && hundred >= 70);
   const medium = level === "medium" || (hundred != null && hundred >= 40);
   if (trust == null && !high && !medium) return null;
-  let value = trust ?? REPUTATION_PRIOR;
+  let value = trust ?? (high ? 20 : 45);
   if (high) value = Math.min(value, 20);
   else if (medium) value = Math.min(value, 45);
   return clampScore(value);
@@ -149,7 +148,7 @@ function sourceReputation(
 
 function weightedMean(
   parts: { weight: number; value: number }[],
-  fallback: number,
+  fallback: number | null = null,
 ) {
   let weight = 0;
   let sum = 0;
@@ -161,8 +160,8 @@ function weightedMean(
   return weight > 0 ? sum / weight : fallback;
 }
 
-function usageScore(votes: UsageClass[], coffee: CoffeeIp) {
-  if (coffee.is_public_service) return 70;
+function usageScore(votes: UsageClass[], publicService: boolean) {
+  if (publicService) return 70;
   const count = (kind: UsageClass) =>
     votes.filter((value) => value === kind).length;
   const residential = count("residential");
@@ -179,41 +178,23 @@ function usageScore(votes: UsageClass[], coffee: CoffeeIp) {
     return 78;
   if (mobile > 0 && mobile >= residential && datacenter === 0) return 90;
   if (residential > 0 && datacenter === 0) return 90;
-  if (votes.length === 0) return 68;
+  if (votes.length === 0) return null;
   return 68;
 }
 
 function anonymityScore(sources: SourceEvidence[]) {
-  const typed = sources.filter((item) => ANON_SOURCE_IDS.has(item.id));
-  if (typed.length < 2) return 70;
-
-  let typedYes = 0;
-  let typedNo = 0;
-  let untyped = 0;
-  let tor = false;
-  let residentialProxy = false;
-
-  for (const source of typed) {
-    if (source.residentialProxy) residentialProxy = true;
-    if (source.tor) tor = true;
-    if (source.id === "ipapi" || source.untypedAnonymous) {
-      if (source.untypedAnonymous) untyped += 0.5;
-      continue;
-    }
-    if (source.vpn === true || source.proxy === true || source.tor)
-      typedYes += 1;
-    else if (source.vpn === false && source.proxy === false) typedNo += 1;
-  }
-
-  if (residentialProxy) return 15;
-  if (tor && typedYes >= 1) return 15;
+  const typedYes = sources.filter(typedAnonymousHit).length;
+  const typedNo = sources.filter(anonymousNegative).length;
+  const untyped = sources.some((source) => source.untypedAnonymous);
+  if (sources.some((source) => source.residentialProxy || source.tor))
+    return 15;
   if (typedYes >= 2 && typedYes > typedNo) return 25;
-  if (typedYes === 1 && typedNo === 0) return 45;
+  if (typedYes >= 1 && typedNo === 0) return 45;
   if (typedYes >= 1 && typedNo >= 1) return 50;
-  if (untyped > 0 && typedYes === 0 && typedNo > 0) return 62;
-  if (untyped > 0 && typedYes === 0 && typedNo === 0) return 55;
-  if (typedYes === 0 && untyped === 0) return 92;
-  return 70;
+  if (untyped && typedNo > 0) return 62;
+  if (untyped) return 55;
+  if (typedNo > 0) return 92;
+  return null;
 }
 
 function scoreCap(
@@ -222,6 +203,7 @@ function scoreCap(
   votes: UsageClass[],
   typedYes: number,
   typedNo: number,
+  publicService: boolean,
 ) {
   let cap = 100;
   const extreme = sources.filter((item) => item.extremeFraud).length;
@@ -232,7 +214,7 @@ function scoreCap(
   if (sources.some((item) => item.tor) && typedYes >= 1)
     cap = Math.min(cap, 25);
   if (typedYes >= 2 && typedYes > typedNo) cap = Math.min(cap, 40);
-  if (!coffee.is_public_service) {
+  if (!publicService) {
     const datacenter = votes.filter((value) => value === "datacenter").length;
     const other = votes.length - datacenter;
     if (datacenter > other) cap = Math.min(cap, 60);
@@ -240,108 +222,37 @@ function scoreCap(
   return cap;
 }
 
-function typedCounts(sources: SourceEvidence[]) {
-  let typedYes = 0;
-  let typedNo = 0;
-  for (const source of sources) {
-    if (source.id === "ipapi" || source.untypedAnonymous) continue;
-    if (!ANON_SOURCE_IDS.has(source.id)) continue;
-    if (source.vpn === true || source.proxy === true || source.tor)
-      typedYes += 1;
-    else if (source.vpn === false && source.proxy === false) typedNo += 1;
-  }
-  return { typedYes, typedNo };
-}
-
-function freshnessEligible(
-  coffee: CoffeeIp,
-  sources: SourceEvidence[],
-  votes: UsageClass[],
-  typedYes: number,
-) {
-  if (coffee.is_public_service) return false;
-  if (coffee.is_abuser === true) return false;
-  if (
-    sources.some(
-      (item) => item.status === "ready" && (item.residentialProxy || item.tor),
-    )
-  )
-    return false;
-  if (typedYes >= 1) return false;
-  const datacenter = votes.filter((value) => value === "datacenter").length;
-  const homeLike = votes.filter(
-    (value) =>
-      value === "residential" ||
-      value === "mobile" ||
-      value === "isp" ||
-      value === "org",
-  ).length;
-  if (datacenter > 0 && datacenter >= homeLike) return false;
-  if (coffee.is_datacenter === true && homeLike === 0) return false;
-  return homeLike > 0;
-}
-
-function extraOrgVote(coffee: CoffeeIp): UsageClass | null {
-  const fromCompany = classifyOrg(coffee.company_type);
-  const fromAsn = classifyOrg(coffee.asn_kind);
-  return fromCompany ?? fromAsn;
-}
-
-function classifyOrg(value?: string): UsageClass | null {
-  const key = value?.replace(/\s+/g, " ").trim().toLowerCase();
-  if (!key) return null;
-  if (
-    /edu|university|college|school|government|\bgov\b|business|corporate|enterprise|education/.test(
-      key,
-    )
-  )
-    return "org";
-  return null;
-}
-
-export function collectUsageVotes(
-  sources: SourceEvidence[],
-  coffee: CoffeeIp,
-): UsageClass[] {
-  const votes = sources
+export function collectUsageVotes(sources: SourceEvidence[]): UsageClass[] {
+  // One provider contributes one usage reading. Company ownership is not an
+  // additional, independent observation of how an address is connected.
+  return sources
     .map((item) => item.usage)
     .filter((value): value is UsageClass => value != null);
-  const extra = extraOrgVote(coffee);
-  if (extra && !votes.includes(extra)) votes.push(extra);
-  return votes;
 }
 
 export function scoreQuality(
   coffee: CoffeeIp,
   sources: SourceEvidence[],
-  options: { prefix?: PrefixAge | null; now?: number } = {},
+  options: {
+    prefix?: PrefixAge | null;
+    now?: number;
+    publicService?: boolean;
+  } = {},
 ): QualityScore {
-  const ready = sources.filter((item) => item.status === "ready");
+  const ready = sources.filter(
+    (item) => item.status === "ready" && reputationApplies(item.id, coffee.ip),
+  );
   const sourcesUsed = ready.length;
   const freshnessDays = prefixAgeDays(
     options.prefix?.registeredAt,
     options.now,
   );
-  if (!sourcesUsed) {
-    return {
-      value: null,
-      band: "neutral",
-      bandLabel: qualityBandLabel("neutral"),
-      reference: true,
-      reputation: REPUTATION_PRIOR,
-      anonymity: 70,
-      usage: 68,
-      uncapped: REPUTATION_PRIOR,
-      freshness: 0,
-      freshnessDays,
-      freshnessEligible: false,
-      prefixRegisteredAt: options.prefix?.registeredAt,
-      cap: 100,
-      sourcesUsed: 0,
-    };
-  }
-
   const reputationParts: { weight: number; value: number }[] = [];
+  const evidence: EvidenceCoverage = {
+    reputation: [],
+    anonymity: [],
+    usage: [],
+  };
   for (const [id, weight] of Object.entries(REPUTATION_SOURCE_WEIGHTS) as [
     keyof typeof REPUTATION_SOURCE_WEIGHTS,
     number,
@@ -351,21 +262,79 @@ export function scoreQuality(
     const value = sourceReputation(source, coffee);
     if (value == null) continue;
     reputationParts.push({ weight, value });
+    evidence.reputation.push(id);
   }
-  const reputation = weightedMean(reputationParts, REPUTATION_PRIOR);
+  const expectedReputation = Object.keys(REPUTATION_SOURCE_WEIGHTS).filter(
+    (id) => reputationApplies(id, coffee.ip),
+  );
+  const missingReputation = expectedReputation.filter(
+    (id) => !evidence.reputation.includes(id),
+  );
+  const reputation = weightedMean(reputationParts);
   const anonymity = anonymityScore(ready);
-  const votes = collectUsageVotes(ready, coffee);
-  const usage = usageScore(votes, coffee);
-  const { typedYes, typedNo } = typedCounts(ready);
-  const cap = scoreCap(ready, coffee, votes, typedYes, typedNo);
-  const eligible = freshnessEligible(coffee, ready, votes, typedYes);
-  const freshness = freshnessBonus(freshnessDays, eligible);
+  const votes = collectUsageVotes(ready);
+  const publicService =
+    options.publicService === true || coffee.is_public_service === true;
+  const usage = usageScore(votes, publicService);
+  const typedYes = ready.filter(typedAnonymousHit).length;
+  const typedNo = ready.filter(anonymousNegative).length;
+  evidence.anonymity = ready
+    .filter((item) => anonymousHit(item) || anonymousNegative(item))
+    .map((item) => item.id);
+  evidence.usage = ready
+    .filter((item) => item.usage != null)
+    .map((item) => item.id);
+  const cap = scoreCap(ready, coffee, votes, typedYes, typedNo, publicService);
+  const missingSources = [
+    ...new Set([
+      ...sources
+        .filter(
+          (source) =>
+            reputationApplies(source.id, coffee.ip) &&
+            (source.status === "unavailable" || source.status === "pending"),
+        )
+        .map((source) => source.id),
+      ...missingReputation,
+      ...REQUIRED_ANONYMITY_SOURCES.filter(
+        (id) => !evidence.anonymity.includes(id),
+      ),
+    ]),
+  ].sort();
+  const dimensions = { reputation, anonymity, usage };
+  const includedWeight = (
+    Object.keys(dimensions) as (keyof typeof dimensions)[]
+  ).reduce(
+    (sum, key) => sum + (dimensions[key] == null ? 0 : QUALITY_WEIGHTS[key]),
+    0,
+  );
+  const effectiveWeights = Object.fromEntries(
+    (Object.keys(dimensions) as (keyof typeof dimensions)[]).map((key) => [
+      key,
+      dimensions[key] == null || includedWeight === 0
+        ? 0
+        : QUALITY_WEIGHTS[key] / includedWeight,
+    ]),
+  ) as QualityScore["effectiveWeights"];
   const uncapped =
-    QUALITY_WEIGHTS.reputation * reputation +
-    QUALITY_WEIGHTS.anonymity * anonymity +
-    QUALITY_WEIGHTS.usage * usage;
-  const reference = sourcesUsed < MIN_SOURCES_FOR_FINAL;
-  const value = Math.round(clampScore(Math.min(uncapped + freshness, cap)));
+    reputation == null && anonymity == null
+      ? null
+      : (reputation ?? 0) * effectiveWeights.reputation +
+        (anonymity ?? 0) * effectiveWeights.anonymity +
+        (usage ?? 0) * effectiveWeights.usage;
+  // Provider count describes coverage, not independence or statistical confidence.
+  const reference =
+    uncapped == null ||
+    missingSources.length > 0 ||
+    Object.values(dimensions).some((value) => value == null) ||
+    Object.values(evidence).some((ids) => ids.length < 2) ||
+    sources.some(
+      (source) =>
+        source.status === "pending" ||
+        source.status === "unavailable" ||
+        source.reputationConflict,
+    );
+  const value =
+    uncapped == null ? null : Math.round(clampScore(Math.min(uncapped, cap)));
   const band = bandFromScore(value);
   return {
     value,
@@ -376,11 +345,14 @@ export function scoreQuality(
     anonymity,
     usage,
     uncapped,
-    freshness,
     freshnessDays,
-    freshnessEligible: eligible,
     prefixRegisteredAt: options.prefix?.registeredAt,
     cap,
     sourcesUsed,
+    evidence,
+    status: value == null ? "unavailable" : reference ? "provisional" : "ready",
+    effectiveWeights,
+    missingSources,
+    profile: qualityProfile(coffee.ip),
   };
 }

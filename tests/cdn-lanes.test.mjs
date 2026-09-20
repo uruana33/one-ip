@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { providers } from "../src/views/cdn/providers.ts";
 import {
+  cdnHitState,
   cdnLaneGroups,
   cdnLeafKind,
   cdnMemberId,
@@ -9,6 +10,7 @@ import {
   groupCdnLanes,
   parseCdnLeafId,
   splitCdnForest,
+  summarizeCdnHits,
 } from "../src/views/egress/cdn-lanes.ts";
 
 function hit(partial) {
@@ -102,6 +104,89 @@ test("same vendor family collapses; domestic and overseas stay on separate lanes
   assert.equal(lanes[3].kind, "pending");
 });
 
+test("current CDN errors override stale nodes and keep hit states exclusive", () => {
+  const staleFailure = hit({
+    id: "stale-failure",
+    family: "cloudflare",
+    path: "overseas",
+    node: "SJC",
+    error: "请求失败",
+  });
+  const pendingWithStaleNode = hit({
+    id: "pending",
+    family: "fastly",
+    path: "overseas",
+    node: "LAX",
+    loading: true,
+    error: "上次请求失败",
+  });
+  const success = hit({
+    id: "success",
+    family: "bunny",
+    path: "overseas",
+    node: "HKG",
+  });
+
+  assert.equal(cdnHitState(staleFailure), "failed");
+  assert.equal(cdnHitState(pendingWithStaleNode), "pending");
+  assert.equal(cdnHitState(success), "success");
+
+  const lanes = groupCdnLanes([staleFailure, pendingWithStaleNode, success]);
+  assert.equal(
+    lanes.find((lane) => lane.family === "cloudflare")?.kind,
+    "blocked",
+  );
+  assert.equal(lanes.find((lane) => lane.family === "cloudflare")?.samples, 0);
+  assert.deepEqual(
+    cdnLaneGroups(lanes.find((lane) => lane.family === "cloudflare")),
+    [{ key: "miss", label: "受阻", members: [staleFailure] }],
+  );
+});
+
+test("CDN summary counts successful families once across domestic and overseas paths", () => {
+  const summary = summarizeCdnHits([
+    hit({
+      id: "cloudflare-domestic",
+      family: "cloudflare",
+      path: "domestic",
+      node: "SHA",
+    }),
+    hit({
+      id: "cloudflare-overseas",
+      family: "cloudflare",
+      path: "overseas",
+      node: "SJC",
+    }),
+    hit({
+      id: "fastly",
+      family: "fastly",
+      path: "overseas",
+      node: "LAX",
+    }),
+    hit({
+      id: "failed",
+      family: "akamai",
+      path: "overseas",
+      node: "FRA",
+      error: "超时",
+    }),
+    hit({
+      id: "pending",
+      family: "bunny",
+      path: "overseas",
+      node: "HKG",
+      loading: true,
+      error: "上次请求失败",
+    }),
+  ]);
+
+  assert.equal(summary.ready.length, 3);
+  assert.equal(summary.failed.length, 1);
+  assert.equal(summary.pending.length, 1);
+  assert.equal(summary.done.length, 4);
+  assert.deepEqual(summary.successfulFamilies, ["cloudflare", "fastly"]);
+});
+
 test("split HTTP exits become two CDN subtrees", () => {
   const lanes = groupCdnLanes([
     hit({
@@ -147,6 +232,26 @@ test("split HTTP exits become two CDN subtrees", () => {
   assert.deepEqual(
     trees[1].lanes.map((lane) => lane.family),
     ["fastly"],
+  );
+});
+
+test("two domestic HTTP observations do not fabricate an overseas CDN tree", () => {
+  const lanes = groupCdnLanes([
+    hit({
+      id: "netease",
+      family: "netease",
+      familyLabel: "网易",
+      path: "domestic",
+      node: "cdn-source: netease",
+    }),
+  ]);
+  const trees = splitCdnForest(lanes, [
+    { ip: "140.210.32.232", country_code: "CN" },
+    { ip: "124.126.3.108", country_code: "CN" },
+  ]);
+  assert.deepEqual(
+    trees.map((tree) => tree.key),
+    ["all"],
   );
 });
 

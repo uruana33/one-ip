@@ -52,7 +52,7 @@ export async function lookupRegistration(query) {
     if (!base) throw error;
     data = await upstream(new URL(path, base).href, options);
   }
-  return { source: "RDAP · 注册局实时数据", query: raw, data };
+  return { source: "RDAP · 注册记录", query: raw, data };
 }
 
 function ipNumber(ip) {

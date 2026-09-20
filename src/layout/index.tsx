@@ -3,7 +3,8 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { BuildInfo } from "@/components/build-info";
 import { LanguageSelect } from "@/components/language-select";
 import { AppUpdateChecker } from "@/components/providers/app-update-checker";
-import { ThemeToggleButton } from "@/components/theme/theme-toggle-button";
+import { SiteBrand } from "@/components/site-brand";
+import { ThemeSelect } from "@/components/theme/theme-select";
 import { Pending } from "@/components/toolkit";
 import { AnimatedSegmentedTabs } from "@/components/ui/animated-segmented-tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -16,7 +17,6 @@ import {
   Activity,
   Sparkles,
   Search,
-  Globe,
 } from "lucide-react";
 import { Tabs } from "radix-ui";
 import { Toaster } from "sonner";
@@ -28,7 +28,6 @@ const MobileNavGlass = lazy(() => import("@/components/mobile-nav-glass"));
 const menuIcons = {
   "/": Home,
   "/network/ip": Search,
-  "/network/subdomains": Globe,
   "/ai/": Sparkles,
   "/status/": Activity,
   "/network/egress": ArrowRightFromLine,
@@ -49,7 +48,7 @@ const options = navigationRoutes.map((route) => {
 });
 
 export function AppLayout() {
-  const { resolvedTheme } = useTheme();
+  const { scheme } = useTheme();
   const mobile = useIsMobile();
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -86,9 +85,10 @@ export function AppLayout() {
     <>
       <div className="app-container">
         <header className="mobile-site-header">
-          <div className="flex items-center gap-1 ml-auto">
+          <SiteBrand />
+          <div className="flex items-center gap-1">
             <LanguageSelect />
-            <ThemeToggleButton className="size-8 rounded-full text-muted-foreground hover:bg-accent/50" />
+            <ThemeSelect className="size-8 rounded-full text-muted-foreground hover:bg-accent/50" />
           </div>
         </header>
         <AnimatedSegmentedTabs
@@ -101,22 +101,23 @@ export function AppLayout() {
           activationMode="manual"
           className="min-w-0"
           listClassName="h-9 w-max justify-start gap-1 bg-transparent p-0"
-          highlightClassName="rounded-full bg-primary/15 shadow-sm ring-1 ring-primary/30 backdrop-blur-sm"
+          highlightClassName="rounded-full bg-primary/12"
           triggerClassName="h-8 flex-none rounded-full border-0 px-3.5 text-[13px] text-muted-foreground hover:text-foreground hover:bg-accent/40 data-[state=active]:font-bold data-[state=active]:text-primary transition-[color,background-color,transform] duration-150 ease-out"
           renderList={(list) => (
             <nav ref={navRef} className="app-nav" aria-label={t("主导航")}>
               {mobile && (
                 <Suspense fallback={null}>
-                  <MobileNavGlass light={resolvedTheme === "light"} />
+                  <MobileNavGlass light={scheme === "light"} />
                 </Suspense>
               )}
+              <SiteBrand className="desktop-site-brand" />
               <ScrollArea className="nav-tabs-scroll">
                 {list}
                 <ScrollBar orientation="horizontal" />
               </ScrollArea>
               <div className="desktop-preferences flex items-center gap-1.5 pl-2 border-l border-border/40">
                 <LanguageSelect />
-                <ThemeToggleButton className="size-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50" />
+                <ThemeSelect className="size-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50" />
               </div>
             </nav>
           )}
@@ -138,11 +139,12 @@ export function AppLayout() {
           </Tabs.Content>
         </AnimatedSegmentedTabs>
         <footer className="app-footer">
-          <p className="app-footer-brand">
+          <div className="app-footer-brand">
+            <SiteBrand />
             <span className="app-footer-copy">
               © {new Date().getFullYear()}
             </span>
-          </p>
+          </div>
           <nav className="app-footer-nav" aria-label={t("站点链接")}>
             <Link className="app-footer-link" to="/terms">
               {t("使用条款")}
@@ -157,7 +159,7 @@ export function AppLayout() {
         <AppUpdateChecker />
       </aside>
       <BuildInfo />
-      <Toaster richColors theme={resolvedTheme} position="top-right" />
+      <Toaster richColors theme={scheme} position="top-right" />
     </>
   );
 }

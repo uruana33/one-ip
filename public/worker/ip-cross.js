@@ -5,7 +5,7 @@ import { prefixFromRdap } from "./whois.js";
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
 const TIMEOUT_MS = 8_000;
-const CACHE_VERSION = "v10";
+const CACHE_VERSION = "v11";
 
 const HREF = {
   ip2location: (ip) => `https://www.ip2location.io/${encodeURIComponent(ip)}`,
@@ -156,10 +156,10 @@ export function placeFromProxyCheck(payload, ip) {
   });
 }
 
-function reading(id, source, metric, value, hint, tone, ip) {
+function reading(id, source, metric, value, hint, tone, ip, extra) {
   const text = value?.replace(/\s+/g, " ").trim();
   if (!text || text === "-" || text === "—") return null;
-  return {
+  const item = {
     id,
     source,
     metric,
@@ -168,6 +168,7 @@ function reading(id, source, metric, value, hint, tone, ip) {
     tone,
     href: HREF[source](ip),
   };
+  return extra ? { ...item, ...extra } : item;
 }
 
 function highBadTone(score, good, warn) {
@@ -180,6 +181,51 @@ function highGoodTone(score, good, warn) {
   if (score >= good) return "good";
   if (score >= warn) return "warn";
   return "bad";
+}
+
+function yesNo(value) {
+  if (typeof value !== "string") return undefined;
+  if (/^yes$/i.test(value.trim())) return true;
+  if (/^no$/i.test(value.trim())) return false;
+  return undefined;
+}
+
+function ownBoolean(object, key) {
+  return object &&
+    Object.hasOwn(object, key) &&
+    typeof object[key] === "boolean"
+    ? object[key]
+    : undefined;
+}
+
+function ownYesNo(object, key) {
+  return object && Object.hasOwn(object, key) ? yesNo(object[key]) : undefined;
+}
+
+function knownFlags(flags) {
+  return Object.values(flags).some((value) => typeof value === "boolean");
+}
+
+function flagsFromIp2LocationType(value) {
+  const flags = {};
+  if (!value) return flags;
+  if (/^(?:no|none|not detected)$/i.test(value.trim())) {
+    return {
+      vpn: false,
+      proxy: false,
+      tor: false,
+      residentialProxy: false,
+      hosting: false,
+    };
+  }
+  if (/\bVPN\b|Anonymizing VPN/i.test(value)) flags.vpn = true;
+  if (/\bTOR\b|Tor/i.test(value)) flags.tor = true;
+  if (/RES|residential/i.test(value)) flags.residentialProxy = true;
+  if (/PUB|proxy/i.test(value) && !/not a proxy|no proxy/i.test(value))
+    flags.proxy = true;
+  if (/DCH|CDN|hosting|datacenter|data center/i.test(value))
+    flags.hosting = true;
+  return flags;
 }
 
 export function parseIp2Location(html, ip) {
@@ -197,6 +243,7 @@ export function parseIp2Location(html, ip) {
   const items = [];
   const usage = field("Usage Type");
   const isp = field("ISP");
+  const usageFlags = flagsFromIp2LocationType(usage);
   if (usage)
     items.push(
       reading(
@@ -207,10 +254,12 @@ export function parseIp2Location(html, ip) {
         isp ?? "",
         /DCH|CDN|host/i.test(usage) ? "warn" : "neutral",
         ip,
+        knownFlags(usageFlags) ? { flags: usageFlags } : undefined,
       ),
     );
   const proxy = field("Proxy Type");
   const provider = field("Provider");
+  const proxyFlags = flagsFromIp2LocationType(proxy);
   if (proxy)
     items.push(
       reading(
@@ -221,6 +270,7 @@ export function parseIp2Location(html, ip) {
         provider ?? "",
         /vpn|tor|dch|pub|res/i.test(proxy) ? "warn" : "neutral",
         ip,
+        knownFlags(proxyFlags) ? { flags: proxyFlags } : undefined,
       ),
     );
   const fraud = field("Fraud Score");
@@ -249,13 +299,26 @@ export function parseIpinfo(html, ip) {
   ))
     values[match[1]] = match[2];
   if (values["IP Address"] !== ip) return [];
-  const flags = ["VPN", "Proxy", "Tor", "Relay"].filter(
-    (name) => values[name] === "Yes",
-  );
-  if (values["Residential Proxy"] === "Yes") flags.push("Residential Proxy");
-  const hosting = values.Hosting === "Yes";
-  const value = flags.length ? flags.join(" · ") : "No";
-  const hint = hosting ? "Hosting" : "";
+  const flags = {
+    vpn: yesNo(values.VPN),
+    proxy: yesNo(values.Proxy),
+    tor: yesNo(values.Tor),
+    relay: yesNo(values.Relay),
+    residentialProxy: yesNo(values["Residential Proxy"]),
+    hosting: yesNo(values.Hosting),
+  };
+  for (const [key, value] of Object.entries(flags)) {
+    if (typeof value !== "boolean") delete flags[key];
+  }
+  if (!knownFlags(flags)) return [];
+  const hits = [];
+  if (flags.vpn) hits.push("VPN");
+  if (flags.proxy) hits.push("Proxy");
+  if (flags.tor) hits.push("Tor");
+  if (flags.relay) hits.push("Relay");
+  if (flags.residentialProxy) hits.push("Residential Proxy");
+  const value = hits.length ? hits.join(" · ") : "No";
+  const hint = flags.hosting ? "Hosting" : "";
   return [
     reading(
       "ipinfo-privacy",
@@ -263,8 +326,15 @@ export function parseIpinfo(html, ip) {
       "privacy",
       value,
       hint,
-      flags.length ? "warn" : hosting ? "neutral" : "good",
+      flags.tor
+        ? "bad"
+        : hits.length
+          ? "warn"
+          : flags.hosting
+            ? "neutral"
+            : "good",
       ip,
+      { flags },
     ),
   ].filter(Boolean);
 }
@@ -294,30 +364,51 @@ export function parseScamalytics(html, ip) {
         "i",
       ),
     );
-    return match?.[1];
+    return yesNo(match?.[1]);
   };
   const vpn = flag("Anonymizing VPN");
   const tor = flag("Tor Exit Node");
   const server = flag("Server");
   const pub = flag("Public Proxy");
   const web = flag("Web Proxy");
+  const flags = {
+    vpn,
+    tor,
+    proxy:
+      pub === true || web === true
+        ? true
+        : pub === false && web === false
+          ? false
+          : undefined,
+    hosting: server,
+  };
+  for (const [key, value] of Object.entries(flags)) {
+    if (typeof value !== "boolean") delete flags[key];
+  }
   const hits = [];
-  if (vpn === "Yes") hits.push("VPN");
-  if (tor === "Yes") hits.push("Tor");
-  if (pub === "Yes" || web === "Yes") hits.push("Proxy");
-  if (vpn || tor || pub || web)
+  if (flags.vpn) hits.push("VPN");
+  if (flags.tor) hits.push("Tor");
+  if (flags.proxy) hits.push("Proxy");
+  if (knownFlags(flags))
     items.push(
       reading(
         "scamalytics-proxy",
         "scamalytics",
         "proxy",
         hits.length ? hits.join(" · ") : "No",
-        server === "Yes" ? "Server" : "",
-        hits.length ? "warn" : "good",
+        flags.hosting ? "Server" : "",
+        flags.tor
+          ? "bad"
+          : hits.length
+            ? "warn"
+            : flags.hosting
+              ? "neutral"
+              : "good",
         ip,
+        { flags },
       ),
     );
-  if (server === "Yes")
+  if (server === true)
     items.push(
       reading(
         "scamalytics-usage",
@@ -339,6 +430,13 @@ export function parseIpApi(payload, ip) {
   if (!payload || payload.status !== "success" || payload.query !== ip)
     return [];
   const items = [];
+  const proxyFlags = {
+    anonymous: typeof payload.proxy === "boolean" ? payload.proxy : undefined,
+    hosting: typeof payload.hosting === "boolean" ? payload.hosting : undefined,
+  };
+  for (const [key, value] of Object.entries(proxyFlags)) {
+    if (typeof value !== "boolean") delete proxyFlags[key];
+  }
   if (typeof payload.proxy === "boolean")
     items.push(
       reading(
@@ -349,6 +447,7 @@ export function parseIpApi(payload, ip) {
         payload.isp ?? "",
         payload.proxy ? "warn" : "good",
         ip,
+        { flags: proxyFlags },
       ),
     );
   if (payload.hosting === true)
@@ -361,6 +460,7 @@ export function parseIpApi(payload, ip) {
         payload.isp ?? "",
         "warn",
         ip,
+        { flags: { hosting: true } },
       ),
     );
   else if (payload.mobile === true)
@@ -384,27 +484,35 @@ export function parseProxyCheck(payload, ip) {
   const row = payload[ip];
   if (!row || typeof row !== "object") return [];
   const det = row.detections;
-  const vpn = det && typeof det.vpn === "boolean" ? det.vpn : row.vpn === "yes";
-  const proxy =
-    det && typeof det.proxy === "boolean" ? det.proxy : row.proxy === "yes";
-  const tor = det?.tor === true;
+  const vpn = ownBoolean(det, "vpn") ?? ownYesNo(row, "vpn");
+  const proxy = ownBoolean(det, "proxy") ?? ownYesNo(row, "proxy");
+  const tor = ownBoolean(det, "tor") ?? ownYesNo(row, "tor");
   const hosting =
-    det?.hosting === true || /hosting|datacenter/i.test(row.type ?? "");
+    ownBoolean(det, "hosting") ??
+    ownYesNo(row, "hosting") ??
+    (/hosting|datacenter/i.test(row.type ?? "") ? true : undefined);
+  const flags = { vpn, proxy, tor, hosting };
+  for (const [key, value] of Object.entries(flags)) {
+    if (typeof value !== "boolean") delete flags[key];
+  }
   const hits = [];
   if (vpn) hits.push("VPN");
   if (proxy) hits.push("Proxy");
   if (tor) hits.push("Tor");
-  const items = [
-    reading(
-      "proxycheck-proxy",
-      "proxycheck",
-      "proxy",
-      hits.length ? hits.join(" · ") : "No",
-      "",
-      tor ? "bad" : hits.length ? "warn" : "good",
-      ip,
-    ),
-  ];
+  const items = [];
+  if (knownFlags(flags))
+    items.push(
+      reading(
+        "proxycheck-proxy",
+        "proxycheck",
+        "proxy",
+        hits.length ? hits.join(" · ") : "No",
+        "",
+        tor ? "bad" : hits.length ? "warn" : hosting ? "neutral" : "good",
+        ip,
+        { flags },
+      ),
+    );
   const usageType = row.network?.type || row.type;
   if (hosting)
     items.push(
@@ -675,7 +783,14 @@ export async function ipCross(value, origin) {
     .map((job) => job.name);
 
   const result = Response.json(
-    { ip, readings, places, unavailable, prefix: prefix ?? null },
+    {
+      ip,
+      checkedAt: new Date().toISOString(),
+      readings,
+      places,
+      unavailable,
+      prefix: prefix ?? null,
+    },
     {
       headers: {
         "Cache-Control": "private, no-store",

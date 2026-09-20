@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import { HttpError, publicIp } from "./http.js";
 
 const CANDIDATE_TYPES = new Set(["host", "srflx", "prflx", "relay"]);
@@ -67,10 +68,28 @@ export function reportWebRtc(request, body) {
       ],
     ),
   );
-  const leakIps = ips.filter((ip) => ip !== observedHttpIp);
-  const splitTunnel =
-    new Set(Object.values(endpointIps).map((values) => values.join(","))).size >
-    1;
+  const sameFamily = (left, right) =>
+    Boolean(left && right && isIP(left) === isIP(right));
+  const leakIps = ips.filter(
+    (ip) => sameFamily(ip, observedHttpIp) && ip !== observedHttpIp,
+  );
+  const endpointFamilies = new Map();
+  for (const candidate of srflx) {
+    const family = isIP(candidate.ip);
+    const endpoints = endpointFamilies.get(family) ?? new Map();
+    const values = endpoints.get(candidate.endpoint) ?? new Set();
+    values.add(candidate.ip);
+    endpoints.set(candidate.endpoint, values);
+    endpointFamilies.set(family, endpoints);
+  }
+  const splitTunnel = [...endpointFamilies.values()].some((endpoints) => {
+    if (endpoints.size < 2) return false;
+    return (
+      new Set(
+        [...endpoints.values()].map((values) => [...values].sort().join(",")),
+      ).size > 1
+    );
+  });
   return {
     probeId: body.probeId,
     httpIp: observedHttpIp,

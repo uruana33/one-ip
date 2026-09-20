@@ -1,21 +1,20 @@
 /*
  * Motion choreography — final layer.
- * Route-level entrances, one unified card hover lift, sidebar micro
- * interactions, and staggered module grids. Everything references the
- * shared --ease-* tokens; the global prefers-reduced-motion rule in
- * index.css neutralizes all of it.
+ * Route-level entrances, sidebar micro-interactions, and staggered
+ * module grids. Cards do not lift on hover. Everything references the
+ * shared --ease-* tokens. prefers-reduced-motion keeps color, drops transform.
  */
 
 @media (prefers-reduced-motion: no-preference) {
   /* Page roots remount on every navigation (keyed route boundary),
      so this replays as a route transition. */
   .app-container main > * {
-    animation: deck-enter 420ms var(--ease-enter) both;
+    animation: deck-enter 180ms var(--ease-enter) both;
   }
 
   /* Module overview grids stagger their cards. */
   .module-overview .grid > * {
-    animation: deck-card-in 420ms var(--ease-enter) both;
+    animation: deck-card-in 180ms var(--ease-enter) both;
   }
   .module-overview .grid > *:nth-child(2) {
     animation-delay: 45ms;
@@ -43,28 +42,14 @@
     animation-delay: 80ms;
   }
 
-  /* One hover lift everywhere: -2px, 200ms, shared enter curve. */
   .cyber-card,
   .cyber-cockpit-card,
   .tool-card,
   .service-summary-card {
     transition:
-      transform 200ms var(--ease-enter),
-      box-shadow 200ms var(--ease-enter),
       border-color 200ms ease,
-      background-color 200ms ease;
-  }
-  .cyber-card:hover,
-  .cyber-cockpit-card:hover,
-  .tool-card:hover,
-  .service-summary-card:hover,
-  .home-page [data-slot="card"]:hover {
-    transform: translateY(-2px);
-  }
-  .lookup-sheet .cyber-cockpit-card:hover,
-  .lookup-sheet .tool-card:hover,
-  .egress-flow.cyber-cockpit-card:hover {
-    transform: none;
+      background-color 200ms ease,
+      box-shadow 200ms ease;
   }
 }
 
@@ -88,7 +73,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .ai-fleet-grid > * {
-    animation: deck-card-in 420ms var(--ease-enter) both;
+    animation: deck-card-in 180ms var(--ease-enter) both;
   }
   .ai-fleet-grid > *:nth-child(2) {
     animation-delay: 45ms;

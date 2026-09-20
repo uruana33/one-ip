@@ -1,113 +1,171 @@
-import { PageHeading, ToolCard } from "@/components/toolkit";
+import { useEffect } from "react";
+import { NavLink } from "react-router-dom";
 import { t } from "@/i18n";
 
+const UPDATED = "2026-09-18";
+
+const terms = [
+  {
+    title: t("服务范围"),
+    body: t(
+      "本站提供 IP 与域名查询、出口诊断、AI 与站点探测、服务状态和 WebRTC 对照，以及无需密钥的公开 API。",
+    ),
+  },
+  {
+    title: t("合理使用"),
+    body: t(
+      "请仅对你有权检测的目标使用本工具。请勿利用本站从事违法活动、干扰第三方服务、绕过访问限制或滥用 API。",
+    ),
+  },
+  {
+    title: t("API 与请求限制"),
+    body: t(
+      "公开 API 不需要密钥，按请求 IP 限流。收到 429 请降低频率后重试，不要轮换 IP 绕过。浏览器跨站调用受同源限制。",
+    ),
+  },
+  {
+    title: t("检测结果的含义"),
+    body: t(
+      "延迟和 HTTP 响应不是 ICMP Ping，也不能证明某个 AI 账号能登录或对话。出口 IP 只描述那一次请求的路径。质量分是多家来源按同一公式合成的参考值，不是任何平台的官方判定。",
+    ),
+  },
+  {
+    title: t("结果与可用性"),
+    body: t(
+      "检测结果受网络、浏览器限制和第三方数据影响，仅供参考，不构成安全性、账号可用性或服务持续可用的保证。服务可能因维护、限流或上游故障而中断。",
+    ),
+  },
+  {
+    title: t("第三方服务与开源许可"),
+    body: t(
+      "点开第三方链接或走他们的接口，同时遵守对方条款。本站源码按仓库中的 AGPL-3.0 许可使用。",
+    ),
+  },
+  {
+    title: t("服务调整"),
+    body: t(
+      "本站可能调整功能、数据源和限流规则。使用前请查阅当前页面说明；重要结果请通过相关服务的官方渠道核实。",
+    ),
+  },
+];
+
+const privacySources = [
+  {
+    use: t("归属与出口"),
+    parties: "ipwho.is · IP.SB · ipify",
+  },
+  {
+    use: t("信誉与用途"),
+    parties:
+      "Net.Coffee · IPinfo · IP-API · IP2Location · IPPure · proxycheck.io · Scamalytics",
+  },
+  {
+    use: t("只提供外链"),
+    parties: t(
+      "IPQualityScore 与 AbuseIPDB 由你点开后在对方网站查询，本站不代查。",
+    ),
+  },
+  {
+    use: t("全球延迟"),
+    parties: "Globalping",
+  },
+  {
+    use: t("域名与 IP 注册"),
+    parties: "RDAP（rdap.org / IANA）",
+  },
+  {
+    use: t("站点图标"),
+    parties: t("经本站转发的 DuckDuckGo 图标"),
+  },
+  {
+    use: t("服务状态接口"),
+    parties: t("各厂商公开状态页"),
+  },
+  {
+    use: t("WebRTC STUN"),
+    parties: t(
+      "默认连接 Google 与 Cloudflare 的 STUN。检测结束后仅把公网 ICE 候选发回本站对照，不含局域网地址。",
+    ),
+  },
+  {
+    use: t("直连探测"),
+    parties: t(
+      "出口、AI 与站点探测由浏览器直连目标，对方能看到该连接的出口 IP。",
+    ),
+  },
+];
+
+const privacy = [
+  {
+    title: t("访问时本站会看到什么"),
+    body: t(
+      "托管服务会处理请求 IP 和必要的请求信息，并用来限流。采样日志的范围和保留时间取决于部署配置。",
+    ),
+  },
+  {
+    title: t("留在这台浏览器里的"),
+    body: t(
+      "主题、语言、隐藏 IP 开关，以及查询历史（每类最近 10 条成功记录）。部分检测页还会在本机留下最近出口记录。查询地址也可能出现在浏览器自己的历史里。可在浏览器的网站数据设置中清除。清除本机数据不会删除第三方或托管侧的记录。",
+    ),
+  },
+  {
+    title: t("查询会发给谁"),
+    body: t("具体请求取决于你打开的功能和查询目标。"),
+    sources: true,
+  },
+  {
+    title: t("本站不会做的"),
+    body: t(
+      "不要求登录。不申请摄像头、麦克风或定位。WebRTC 页只建立数据通道。不为广告建立跨站档案。",
+    ),
+  },
+];
+
 export default function PolicyPage({ page }: { page: "terms" | "privacy" }) {
-  const sections = {
-    terms: [
-      [
-        t("服务范围"),
-        t(
-          "本站提供 IP 查询、网络诊断及服务状态查询，API 使用方式见 API 页面。",
-        ),
-      ],
-      [
-        t("合理使用"),
-        t(
-          "请仅对你有权检测的目标使用本工具。请勿利用本站从事违法活动、干扰第三方服务、绕过访问限制或滥用 API。",
-        ),
-      ],
-      [
-        t("API 与请求限制"),
-        t(
-          "API 无需密钥，但受按请求 IP 的频率限制。收到 429 时请降低频率后重试，不要通过轮换 IP 绕过限制。浏览器跨站调用受同源限制；公开接口以 API 页面说明为准。",
-        ),
-      ],
-      [
-        t("检测结果的含义"),
-        t(
-          "HTTP 响应和延迟不等同于 ICMP Ping，也不能证明 AI 登录、对话或模型权限可用。出口 IP 只代表对应请求的网络路径；IP 信誉与浏览器异常信号不能单独证明滥用或身份伪装。",
-        ),
-      ],
-      [
-        t("结果与可用性"),
-        t(
-          "检测结果受网络、浏览器限制和第三方数据影响，仅供参考，不构成安全性、账号可用性或服务持续可用的保证。服务可能因维护、限流或上游故障而中断。",
-        ),
-      ],
-      [
-        t("第三方服务与开源许可"),
-        t(
-          "访问第三方链接或使用相关服务时，请同时遵守其条款。项目源码的使用遵循仓库中的开源许可证。",
-        ),
-      ],
-      [
-        t("服务调整"),
-        t(
-          "本站可能调整功能、数据源和限流规则。使用前请查阅当前页面说明；重要结果请通过相关服务的官方渠道核实。",
-        ),
-      ],
-    ],
-    privacy: [
-      [
-        t("查询与网络请求"),
-        t(
-          "访问本站时，托管服务会处理请求 IP 和必要的网络请求信息。查询 IP、域名或进行网络检测时，相关目标会发送至对应数据源或检测服务；浏览器直连的第三方站点也能看到该连接的出口 IP。",
-        ),
-      ],
-      [
-        t("本地存储"),
-        t(
-          "本站在当前浏览器保存主题、语言、提示偏好和查询历史。查询历史包含最近成功查询的地址与结果；地址也可能出现在浏览器历史中。你可以通过浏览器的网站数据设置清除本地数据。",
-        ),
-      ],
-      [
-        t("第三方数据处理"),
-        t(
-          "IP 健康度查询会将被查询的公网 IP 发送给 Net.Coffee。其他查询和站点资源按所用服务处理必要请求数据。第三方及托管服务的数据处理和日志保留受其政策与实际配置约束。",
-        ),
-      ],
-      [
-        t("第三方服务明细"),
-        t(
-          "IP 归属查询可能请求 ipwho.is、IP.SB 或 ipify；IP 健康度使用 Net.Coffee。全球 Ping 向 Globalping 提交目标和探针选择；服务状态读取各厂商公开接口。具体请求取决于你打开的页面和选择的检测。",
-        ),
-      ],
-      [
-        t("WebRTC 检测"),
-        t(
-          "WebRTC 检测连接多个 STUN 服务，可能显示与网页请求不同的出口地址；检测完成后仅将公网 ICE 候选（不含局域网 host 地址）发送至本站进行对照。本页只创建数据通道，不申请摄像头、麦克风或定位权限。",
-        ),
-      ],
-      [
-        t("保存与清除"),
-        t(
-          "查询历史在当前浏览器按类别保留最近 10 条成功查询及结果，清除本站数据即可删除。服务端使用请求 IP 做限流；托管配置启用了采样日志，实际记录与保留时间取决于部署设置。清除浏览器数据不会删除第三方或托管服务的记录。如需咨询相关数据，请联系作者并说明请求时间和功能。",
-        ),
-      ],
-    ],
-  };
+  const title = page === "terms" ? t("使用条款") : t("隐私政策");
+  useEffect(() => {
+    document.title = `${title} - ${t("IP 网络工具")}`;
+  }, [title]);
+
+  const sections = page === "terms" ? terms : privacy;
+
   return (
-    <div className="space-y-3">
-      <PageHeading
-        title={page === "terms" ? t("使用条款") : t("隐私政策")}
-        description=""
-      />
-      {sections[page].map(([title, body]) => (
-        <ToolCard key={title} title={title}>
-          <p className="text-sm leading-6 text-muted-foreground">{body}</p>
-        </ToolCard>
-      ))}
-      <ToolCard title={t("联系作者")}>
-        <p className="mb-2 text-sm text-muted-foreground">
-          {t("如对本站使用或隐私有疑问，请通过邮箱联系作者。")}
+    <article className="policy-doc">
+      <nav className="policy-switch" aria-label={t("站点政策")}>
+        <NavLink to="/terms">{t("使用条款")}</NavLink>
+        <NavLink to="/privacy">{t("隐私政策")}</NavLink>
+      </nav>
+      <header className="policy-mast">
+        <h1>{title}</h1>
+        <p className="policy-lede">
+          {page === "terms"
+            ? t("使用本站即表示你同意按当前页面使用。检测结果只供参考。")
+            : t(
+                "本站不设账号、不做广告追踪。查询会把目标发给第三方；你的浏览器直连的站点能看到那次连接的出口 IP。",
+              )}
         </p>
-        <a
-          className="text-sm text-primary hover:underline"
-          href="mailto:ip@huzhihui.com"
-        >
-          ip@huzhihui.com
-        </a>
-      </ToolCard>
-    </div>
+        <p className="policy-meta">
+          <time dateTime={UPDATED}>
+            {t("最近更新")} {UPDATED}
+          </time>
+        </p>
+      </header>
+      {sections.map((section) => (
+        <section key={section.title} className="policy-section">
+          <h2>{section.title}</h2>
+          <p>{section.body}</p>
+          {"sources" in section && section.sources ? (
+            <dl className="policy-sources">
+              {privacySources.map((row) => (
+                <div key={row.use}>
+                  <dt>{row.use}</dt>
+                  <dd>{row.parties}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </section>
+      ))}
+    </article>
   );
 }

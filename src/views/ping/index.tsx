@@ -134,7 +134,7 @@ export default function PingPage({
           </Button>
         </div>
       ) : (
-        <div className="lookup-search-card cyber-cockpit-card hud-frame">
+        <div className="lookup-search-card cyber-cockpit-card">
           <LookupForm
             grouped
             value={host}

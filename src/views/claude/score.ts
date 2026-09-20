@@ -1,7 +1,7 @@
 import {
   SIGNALS,
-  riskBand,
   type DetectOutcome,
+  type DetectionStatus,
   type SignalDef,
 } from "../../../vendor/claude-environment/signals";
 
@@ -24,21 +24,41 @@ export async function detectSignal(
   }
 }
 
+export function outcomeStatus(
+  outcome: DetectOutcome | undefined,
+): DetectionStatus | "pending" {
+  if (!outcome) return "pending";
+  if (outcome.status) return outcome.status;
+  if (/unavailable|blocked|failed|timed out/i.test(outcome.raw))
+    return "unavailable";
+  if (/unknown|not detected|not available/i.test(outcome.raw)) return "unknown";
+  return "observed";
+}
+
 export function summarizeSignals(outcomes: (DetectOutcome | undefined)[]) {
-  const total = Math.round(
-    SIGNALS.reduce(
-      (sum, definition, i) =>
-        sum + (outcomes[i]?.score ?? 0) * definition.weight,
-      0,
-    ),
-  );
+  const statuses = SIGNALS.map((_, i) => outcomeStatus(outcomes[i]));
+  const observedCount = statuses.filter(
+    (status) => status === "observed",
+  ).length;
+  const unknownCount = statuses.filter((status) => status === "unknown").length;
+  const unavailableCount = statuses.filter(
+    (status) => status === "unavailable",
+  ).length;
+  const pendingCount = statuses.filter((status) => status === "pending").length;
   return {
-    total,
-    band: riskBand(total),
+    observedCount,
+    unknownCount,
+    unavailableCount,
+    pendingCount,
     complete:
-      outcomes.length === SIGNALS.length &&
-      outcomes.every(
-        (outcome) => outcome && !/unknown|unavailable/i.test(outcome.raw),
-      ),
+      pendingCount === 0 && unknownCount === 0 && unavailableCount === 0,
+    status:
+      pendingCount > 0
+        ? "pending"
+        : unavailableCount > 0
+          ? "unavailable"
+          : unknownCount > 0
+            ? "unknown"
+            : "complete",
   };
 }

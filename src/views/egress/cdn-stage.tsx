@@ -1,7 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
-import { CountryFlag } from "@/components/country-flag";
 import { NumberTicker } from "@/components/number-ticker";
-import { ActionButton, IpText } from "@/components/toolkit";
+import { ActionButton } from "@/components/toolkit";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { t } from "@/i18n";
 import {
@@ -12,6 +11,7 @@ import {
   groupCdnLanes,
   parseCdnLeafId,
   splitCdnForest,
+  summarizeCdnHits,
   type CdnForestTree,
   type CdnHit,
   type CdnLane,
@@ -75,15 +75,36 @@ function collectHttpExits(provided: readonly DnsHttpExit[] | undefined) {
   return exits;
 }
 
-function HttpOriginLabel({ exits }: { exits: readonly DnsHttpExit[] }) {
-  if (!exits.length) return t("本机");
-  const exit = exits[0];
+function SourceOriginLabel({ path }: { path: CdnForestTree["key"] }) {
+  const label =
+    path === "domestic"
+      ? t("国内 CDN 来源")
+      : path === "overseas"
+        ? t("海外 CDN 来源")
+        : t("CDN 来源");
   return (
-    <span className="egress-flow-you-ip">
-      <CountryFlag code={exit.country_code} />
-      <IpText ip={exit.ip} link={false} />
+    <span className="egress-flow-you-ip" title={t("按 CDN 预设来源分类")}>
+      {label}
     </span>
   );
+}
+
+function httpReferenceHint(tree: CdnForestTree, busy: boolean) {
+  const reference = tree.origin;
+  if (reference?.ip) {
+    return [
+      t("按 CDN 预设来源分类"),
+      t("HTTP 出口仅作对照"),
+      reference.ip,
+      reference.country,
+      reference.isp,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+  return busy
+    ? t("正在读取 HTTP 对照出口")
+    : t("按 CDN 预设来源分类，HTTP 出口仅作对照");
 }
 
 function toMeshLanes(lanes: readonly CdnLane[], toneFrom = 0): MeshLaneView[] {
@@ -141,20 +162,11 @@ function CdnTreeMesh({
   onSelectLane: (key: string) => void;
   onSelectSite: (id: string) => void;
 }) {
-  const origin = tree.origin;
   return (
     <EgressMesh
       layout="wrap"
-      originLabel={<HttpOriginLabel exits={origin?.ip ? [origin] : []} />}
-      originHint={
-        origin?.ip
-          ? [t(tree.hint), origin.country, origin.isp]
-              .filter(Boolean)
-              .join(" · ")
-          : busy
-            ? t("正在读取出口 IP")
-            : t(tree.hint)
-      }
+      originLabel={<SourceOriginLabel path={tree.key} />}
+      originHint={httpReferenceHint(tree, busy)}
       lanes={toMeshLanes(tree.lanes, toneFrom)}
       onSelectIp={onSelectLane}
       onSelectSite={onSelectSite}
@@ -186,10 +198,10 @@ export function CdnStage({
   const originExits = collectHttpExits(httpExits);
   const trees = splitCdnForest(lanes, originExits, busy);
   const forest = trees.length > 1;
-  const ready = hits.filter((item) => item.node && !item.loading);
-  const failed = hits.filter((item) => !item.loading && !item.node);
-  const done = hits.filter((item) => !item.loading).length;
-  const families = lanes.filter((lane) => lane.kind === "exit");
+  const summary = summarizeCdnHits(hits);
+  const { ready, failed } = summary;
+  const done = summary.done.length;
+  const families = summary.successfulFamilies;
   const bothTrees =
     forest &&
     trees.every((tree) => tree.lanes.some((lane) => lane.kind === "exit"));
@@ -213,7 +225,7 @@ export function CdnStage({
   const view = sheet ?? heldSheet.current;
   const progress = hits.length ? Math.min(1, done / hits.length) : 0;
   const verdict = bothTrees
-    ? t("国内和海外边缘都接住了")
+    ? t("国内和海外来源均有节点")
     : ready.length
       ? t("边缘节点已点亮")
       : busy
@@ -221,7 +233,7 @@ export function CdnStage({
         : t("还没有读到节点");
 
   return (
-    <FlowStage className="egress-flow egress-cdn cyber-cockpit-card hud-frame">
+    <FlowStage className="egress-flow egress-cdn cyber-cockpit-card">
       <div className="egress-flow-toolbar">
         <div className="egress-flow-kicker">
           <span
@@ -233,7 +245,7 @@ export function CdnStage({
           </span>
           <p className="egress-flow-lead">
             {t(
-              "每个 HTTP 出口单独一棵子树。国内 CDN 挂在国内出口下，海外 CDN 挂在海外出口下。节点是边缘 POP，不是你的公网 IP。",
+              "国内和海外按 CDN 预设来源分组。HTTP 出口单独作为对照，节点是边缘 POP，不代表每个请求绑定该 IP。",
             )}
           </p>
         </div>

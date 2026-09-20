@@ -15,7 +15,7 @@ import {
 import { useSortAnimation } from "@/hooks/use-sort-animation";
 import { t } from "@/i18n";
 import type { DefaultExitSource } from "./default-exit";
-import { AI_OVERVIEW_SAMPLE_COUNT } from "./probe";
+import { AI_OVERVIEW_SAMPLE_COUNT, probeCoverage } from "./probe";
 import { useAiNetworkQueries } from "./use-ai-network";
 
 function defaultExitLabel(source: DefaultExitSource | undefined): string {
@@ -70,11 +70,11 @@ export function AiNetworkCheck({
             <TableBody>
               {items.map(({ domain, result, exit, platform, defaultExit }) => {
                 const isPlatformExit = Boolean(platform?.traceDomain);
-                const isKnownPlatform = Boolean(platform);
+                const egressConfigured = exit.configured;
                 const exitKind = isPlatformExit
                   ? t("平台实测出口")
-                  : !isKnownPlatform
-                    ? t("出口暂不可用")
+                  : !egressConfigured
+                    ? t("未配置平台出口检测")
                     : defaultExit?.verdict === "split"
                       ? t("观察到分流")
                       : defaultExitLabel(defaultExit?.displaySource);
@@ -82,7 +82,7 @@ export function AiNetworkCheck({
                   ? t(
                       "通过该平台可读取的 trace 端点测得，反映本次访问该平台端点的出口。",
                     )
-                  : !isKnownPlatform
+                  : !egressConfigured
                     ? t("该域名未配置平台出口检测。")
                     : defaultExit?.verdict === "split"
                       ? t(
@@ -117,8 +117,11 @@ export function AiNetworkCheck({
                       </span>
                       {exit.pending ? (
                         <Pending>{t("检测中…")}</Pending>
-                      ) : isKnownPlatform &&
-                        defaultExit?.verdict === "split" ? (
+                      ) : !egressConfigured ? (
+                        <span title={t("该 API 域名未配置专属出口检测。")}>
+                          {t("未配置")}
+                        </span>
+                      ) : defaultExit?.verdict === "split" ? (
                         defaultExit.sources
                           .filter((source) => source.ip)
                           .map((source) => (
@@ -144,27 +147,72 @@ export function AiNetworkCheck({
                           {t("检测失败")}
                         </span>
                       )}
+                      {exit.stale && exit.updatedAt ? (
+                        <span className="text-xs muted">
+                          {t("上次出口结果 · {0}", [
+                            new Date(exit.updatedAt).toLocaleString(),
+                          ])}
+                        </span>
+                      ) : null}
                     </TableCell>
                     <TableCell className="ai-connectivity-latency text-right">
                       {probeQuery.isPending ? (
                         <Pending>{t("检测中…")}</Pending>
                       ) : result?.median != null ? (
-                        <span title={result.description}>
-                          <LatencyBadge
-                            result={result}
-                            running={probeQuery.isFetching}
-                          />
+                        <span className="flex flex-col items-end gap-0.5">
+                          <span title={result.description}>
+                            <LatencyBadge
+                              result={result}
+                              running={probeQuery.isFetching}
+                            />
+                          </span>
+                          <span className="text-xs muted">
+                            {(() => {
+                              const coverage = probeCoverage(result);
+                              return t("成功 {0}/{1}", [
+                                coverage.successful,
+                                coverage.total,
+                              ]);
+                            })()}
+                          </span>
+                          {probeQuery.isRefetchError &&
+                          probeQuery.dataUpdatedAt ? (
+                            <span className="text-xs muted">
+                              {t("上次结果 · {0}", [
+                                new Date(
+                                  probeQuery.dataUpdatedAt,
+                                ).toLocaleString(),
+                              ])}
+                            </span>
+                          ) : null}
                         </span>
                       ) : (
                         <span
-                          className="text-xs text-muted-foreground"
+                          className="text-xs font-medium text-destructive"
                           title={result?.description}
                         >
                           {result?.status === "restricted"
                             ? t("检测受限")
                             : t("未确认")}
+                          {result ? (
+                            <span className="block text-xs text-muted-foreground">
+                              {t("成功 {0}/{1}", [
+                                probeCoverage(result).successful,
+                                probeCoverage(result).total,
+                              ])}
+                            </span>
+                          ) : null}
                         </span>
                       )}
+                      {probeQuery.isRefetchError &&
+                      result?.median == null &&
+                      probeQuery.dataUpdatedAt ? (
+                        <span className="text-xs muted">
+                          {t("上次结果 · {0}", [
+                            new Date(probeQuery.dataUpdatedAt).toLocaleString(),
+                          ])}
+                        </span>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 );

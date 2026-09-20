@@ -205,6 +205,35 @@ test("WebRTC reports validate candidates and compare them with the request IP", 
   assert.equal(result.udpBlocked, false);
   assert.equal(result.candidateCount, 2);
 });
+
+test("WebRTC report compares leak addresses within the same IP family", async () => {
+  const response = await worker.fetch(
+    request("/api/webrtc/report", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "CF-Connecting-IP": "1.1.1.1",
+      },
+      body: JSON.stringify({
+        probeId: "12345678-1234-4abc-8def-123456789012",
+        candidates: [
+          {
+            ip: "2001:4860:4860::8888",
+            type: "srflx",
+            endpoint: "stun:stun.example.com:3478",
+            port: 42000,
+            protocol: "udp",
+          },
+        ],
+      }),
+    }),
+    env,
+  );
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.deepEqual(result.leakIps, []);
+  assert.equal(result.splitTunnel, false);
+});
 test("status API caches valid public status responses with Cache API", async () => {
   const originalCaches = Object.getOwnPropertyDescriptor(globalThis, "caches");
   const cached = new Map();
@@ -245,6 +274,55 @@ test("status API caches valid public status responses with Cache API", async () 
         assert.equal(calls, 1);
         assert.equal(secondBody.fetchedAt, firstBody.fetchedAt);
         assert.equal(secondBody.source, firstBody.source);
+      },
+    );
+  } finally {
+    if (originalCaches)
+      Object.defineProperty(globalThis, "caches", originalCaches);
+    else delete globalThis.caches;
+  }
+});
+
+test("status cache ignores payloads from the previous schema version", async () => {
+  const originalCaches = Object.getOwnPropertyDescriptor(globalThis, "caches");
+  const cached = new Map();
+  Object.defineProperty(globalThis, "caches", {
+    configurable: true,
+    value: {
+      default: {
+        match: async (request) => cached.get(request.url)?.clone(),
+        put: async (request, response) =>
+          cached.set(request.url, response.clone()),
+      },
+    },
+  });
+  let calls = 0;
+  try {
+    const legacyKey = new Request("https://tools.example.com/api/status/0", {
+      method: "GET",
+    });
+    cached.set(
+      legacyKey.url,
+      Response.json({
+        status: { indicator: "none", description: "正常运行" },
+        fetchedAt: new Date().toISOString(),
+        source: "https://www.cloudflarestatus.com/api/v2/summary.json",
+      }),
+    );
+    await withFetch(
+      async () => {
+        calls += 1;
+        return Response.json({
+          page: { status: "UP" },
+          activeIncidents: [],
+          activeMaintenances: [],
+        });
+      },
+      async () => {
+        const response = await worker.fetch(request("/api/status/0"), env);
+        assert.equal(response.status, 200);
+        assert.equal(calls, 1);
+        assert.equal((await response.json()).evidence.kind, "official");
       },
     );
   } finally {
@@ -295,26 +373,32 @@ test("removed legacy risk endpoint returns 404", async () => {
   );
 });
 test("cross readings are served from /api/ip/cross without mixing scores", async () => {
-  await withFetch(async (url, init) => {
-    const href = String(url);
-    if (href.includes("api.123169.xyz/api/info/ip-risk/")) {
-      const headers = new Headers(init?.headers);
-      if (headers.get("x-k"))
-        return Response.json({ ok: true, data: { risk_score: 40 } });
-      return new Response(JSON.stringify({ ok: false }), {
-        headers: { "x-k": "test-key", "x-t": "1000" },
-      });
-    }
-    return new Response("no", { status: 403 });
-  }, async () => {
-    const response = await worker.fetch(request("/api/ip/cross/1.1.1.1"), env);
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.ip, "1.1.1.1");
-    const purity = body.readings.find((item) => item.id === "ippure-purity");
-    assert.equal(purity?.value, "60");
-    assert.ok(!body.unavailable.includes("ippure"));
-  });
+  await withFetch(
+    async (url, init) => {
+      const href = String(url);
+      if (href.includes("api.123169.xyz/api/info/ip-risk/")) {
+        const headers = new Headers(init?.headers);
+        if (headers.get("x-k"))
+          return Response.json({ ok: true, data: { risk_score: 40 } });
+        return new Response(JSON.stringify({ ok: false }), {
+          headers: { "x-k": "test-key", "x-t": "1000" },
+        });
+      }
+      return new Response("no", { status: 403 });
+    },
+    async () => {
+      const response = await worker.fetch(
+        request("/api/ip/cross/1.1.1.1"),
+        env,
+      );
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.equal(body.ip, "1.1.1.1");
+      const purity = body.readings.find((item) => item.id === "ippure-purity");
+      assert.equal(purity?.value, "60");
+      assert.ok(!body.unavailable.includes("ippure"));
+    },
+  );
 });
 test("removed DNS endpoints return 404 without querying upstream services", async () => {
   await withFetch(
@@ -386,7 +470,9 @@ test("WHOIS uses RDAP and never turns a target into a free-form fetch URL", asyn
         request("/api/whois/lookup/AS15169"),
         env,
       );
-      assert.equal((await response.json()).data.handle, "AS15169");
+      const body = await response.json();
+      assert.equal(body.data.handle, "AS15169");
+      assert.equal(body.source, "RDAP · 注册记录");
     },
   );
 });

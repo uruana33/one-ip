@@ -8,7 +8,9 @@
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans:
-    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    "Geist Variable", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -92,7 +94,7 @@
   /* Micro-interaction tokens */
   --icon-swap-dur: 200ms;
   --icon-swap-blur: 2px;
-  --icon-swap-start-scale: 0.25;
+  --icon-swap-start-scale: 0.96;
   --icon-swap-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
   --badge-slide-dur: 260ms;
@@ -154,7 +156,7 @@
     @apply bg-background text-foreground;
   }
   html {
-    @apply font-sans;
+    @apply font-sans antialiased;
   }
 }
 
@@ -425,7 +427,6 @@ body {
   border-radius: var(--radius-xl);
   box-shadow: var(--tool-shadow);
   transition:
-    transform 200ms var(--ease-enter),
     box-shadow 200ms var(--ease-enter),
     border-color 200ms ease;
   overflow: hidden;
@@ -541,34 +542,20 @@ body {
 }
 
 .cyber-cockpit-card:hover {
-  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
-  box-shadow:
-    0 12px 40px -6px rgba(0, 0, 0, 0.3),
-    0 0 28px -4px color-mix(in srgb, var(--primary) 35%, transparent);
-  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
 }
 
 .dark .cyber-cockpit-card:hover {
-  box-shadow:
-    0 16px 48px -8px rgba(0, 0, 0, 0.7),
-    0 0 32px -4px rgba(0, 240, 255, 0.28);
+  box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.45);
 }
 
-/* Cyber Neon Text & Gradients */
+/* Quiet titles — same language in light and dark. */
 .cyber-gradient-title {
-  background: linear-gradient(135deg, #00f0ff 0%, #38bdf8 50%, #a5b4fc 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.light .cyber-gradient-title {
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 60%, #4338ca 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--foreground);
 }
 
 .cyber-neon-ip {
-  text-shadow: 0 0 24px rgba(0, 240, 255, 0.35);
+  text-shadow: none;
 }
 
 /* ============================================================
@@ -761,15 +748,23 @@ body {
   }
 }
 
-/* Reduced motion accessibility rule (ui-animation standard) */
+/* Reduced motion: strip movement, keep color/opacity. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  [data-slot="button"] {
+    transition:
+      background-color 150ms ease,
+      color 150ms ease,
+      border-color 150ms ease;
+  }
+  [data-slot="button"]:active:not([aria-haspopup="true"]) {
+    transform: none;
   }
   .radar-spin,
   .pulse-glow,

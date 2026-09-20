@@ -132,7 +132,6 @@ export async function detectSiteResult(
   runId: string,
   signal?: AbortSignal,
 ): Promise<DiagnosticResult> {
-  const queuedAt = performance.now();
   const context = {
     runId,
     sourceId: site.id,
@@ -161,18 +160,25 @@ export async function detectSiteResult(
       },
     );
   }
-  const attempt = () =>
-    diagnosticLimiter.run(
+  let queueWaitMs = 0;
+  let networkMs = 0;
+  const attempt = () => {
+    const queuedAt = performance.now();
+    return diagnosticLimiter.run(
       signal,
       async () => {
         const startedAt = performance.now();
         const timing = () => {
-          const totalMs = Math.round(performance.now() - queuedAt);
-          const queueWaitMs = Math.round(startedAt - queuedAt);
+          const finishedAt = performance.now();
+          const attemptQueueWaitMs = Math.round(startedAt - queuedAt);
+          const attemptNetworkMs = Math.round(finishedAt - startedAt);
+          queueWaitMs += attemptQueueWaitMs;
+          networkMs += attemptNetworkMs;
+          const totalMs = queueWaitMs + networkMs;
           return {
             latencyMs: totalMs,
             queueWaitMs,
-            networkMs: totalMs - queueWaitMs,
+            networkMs,
             totalMs,
             capturedAt: new Date().toISOString(),
           };
@@ -194,6 +200,7 @@ export async function detectSiteResult(
       },
       SITE_PROBE_PRIORITY,
     );
+  };
   const first = await attempt();
   if (first.status !== "timeout" || signal?.aborted) return first;
   return attempt();

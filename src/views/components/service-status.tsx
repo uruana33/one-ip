@@ -9,8 +9,13 @@ import { UnderlineHover } from "@/components/underline-hover";
 import { t, locale } from "@/i18n";
 import { queryKeys } from "@/lib/query-keys";
 import { getStatus } from "@/views/status/api";
+import { presentStatus, statusLabelKey } from "@/views/status/presentation";
 import services from "@/views/status/services.json";
 import { useQuery } from "@tanstack/react-query";
+
+function readableStatus(value: string | undefined, indicator?: string): string {
+  return t(statusLabelKey(value, indicator));
+}
 
 export function ServiceStatusPage({
   name,
@@ -25,6 +30,13 @@ export function ServiceStatusPage({
     staleTime: 60_000,
     refetchInterval: 120_000,
   });
+  const presented = presentStatus({
+    url: service.url,
+    isError: query.isError,
+    isRefetchError: query.isRefetchError,
+    data: query.data,
+  });
+  const stale = presented.stale;
   return (
     <>
       <PageHeading
@@ -36,40 +48,57 @@ export function ServiceStatusPage({
         <Pending>{t("正在读取官方状态…")}</Pending>
       ) : query.data ? (
         <>
-          <ToolCard title={t("当前状态")}>
+          <ToolCard title={stale ? t("上次状态") : t("当前状态")}>
             <Facts
-              rows={[
-                [t("状态"), t(query.data.status?.description ?? "未知")],
-                [
-                  t("更新于"),
-                  new Date(query.data.fetchedAt).toLocaleString(locale),
-                ],
-              ]}
+              rows={(() => {
+                const rows: [string, string][] = [
+                  [
+                    t("状态"),
+                    readableStatus(
+                      query.data.status?.description,
+                      query.data.status?.indicator,
+                    ),
+                  ],
+                  [
+                    stale ? t("上次读取于") : t("读取于"),
+                    new Date(query.data.fetchedAt).toLocaleString(locale),
+                  ],
+                ];
+                if (query.data.evidence)
+                  rows.push([t("证据来源"), t(query.data.evidence.label)]);
+                if (query.data.evidence?.note)
+                  rows.push([t("说明"), query.data.evidence.note]);
+                return rows;
+              })()}
             />
           </ToolCard>
           <section className="reading">
-            <h2>{t("服务组件")}</h2>
+            <h2>{stale ? t("上次组件状态") : t("服务组件")}</h2>
             <Facts
               rows={(query.data.components ?? []).map((c) => [
                 c.name,
-                c.status,
+                readableStatus(c.status),
               ])}
             />
           </section>
           <section className="reading">
-            <h2>{t("当前事件")}</h2>
+            <h2>{stale ? t("上次事件记录") : t("当前事件")}</h2>
             {query.data.incidents?.length ? (
               query.data.incidents.map((i) => (
                 <ToolCard title={i.name} key={i.id}>
                   <p>
-                    {i.status}
+                    {readableStatus(i.status)}
                     {i.updated_at &&
                       ` · ${new Date(i.updated_at).toLocaleString(locale)}`}
                   </p>
                 </ToolCard>
               ))
             ) : (
-              <p className="muted">{t("官方接口当前没有未解决事件。")}</p>
+              <p className="muted">
+                {stale
+                  ? t("上次读取时没有未解决事件，当前情况待更新。")
+                  : t("官方接口当前没有未解决事件。")}
+              </p>
             )}
           </section>
         </>

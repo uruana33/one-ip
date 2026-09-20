@@ -100,6 +100,58 @@ test("a timeout is retried once without a new user action", async () => {
   }
 });
 
+test("a timeout retry keeps prior network time out of the queue duration", async (t) => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  const clock = [0, 0, 120, 120, 120, 140];
+  t.mock.method(performance, "now", () => clock.shift() ?? 140);
+  globalThis.fetch = async () => {
+    calls += 1;
+    if (calls === 1)
+      throw new DOMException(
+        "The operation was aborted due to timeout",
+        "TimeoutError",
+      );
+    return Response.json({ ip: "1.1.1.1" });
+  };
+  try {
+    const result = await detectSiteResult(jsonSource, "retry-timing-run");
+    assert.equal(result.status, "ok");
+    assert.equal(result.queueWaitMs, 0);
+    assert.equal(result.networkMs, 140);
+    assert.equal(result.totalMs, 140);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("a failed timeout retry reports both network attempts", async (t) => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  const clock = [0, 0, 120, 120, 120, 200];
+  t.mock.method(performance, "now", () => clock.shift() ?? 200);
+  globalThis.fetch = async () => {
+    calls += 1;
+    throw new DOMException(
+      "The operation was aborted due to timeout",
+      "TimeoutError",
+    );
+  };
+  try {
+    const result = await detectSiteResult(
+      jsonSource,
+      "retry-failed-timing-run",
+    );
+    assert.equal(result.status, "timeout");
+    assert.equal(result.queueWaitMs, 0);
+    assert.equal(result.networkMs, 200);
+    assert.equal(result.totalMs, 200);
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("fast network failures are not retried", async () => {
   const original = globalThis.fetch;
   let calls = 0;

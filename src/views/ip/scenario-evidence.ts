@@ -11,6 +11,7 @@ export type EvidenceState =
   | "mismatch"
   | "expired"
   | "cancelled";
+export type AccessScope = "ip" | "different" | "browser";
 export type HttpSample = {
   elapsedMs: number;
   outcome: "readable" | "opaque" | "refused" | "rate-limited" | "unknown";
@@ -148,11 +149,38 @@ export function accessRating(
     total: samples.length,
     fluctuating: successful.length > 0 && successful.length < samples.length,
     scope: attributed
-      ? ("ip" as const)
+      ? ("ip" as AccessScope)
       : mismatch
-        ? ("different" as const)
-        : ("browser" as const),
+        ? ("different" as AccessScope)
+        : ("browser" as AccessScope),
     stale,
+  };
+}
+export function summarizeAccessScopes(
+  evidence: (Evidence | undefined)[],
+  ip: string,
+  now = Date.now(),
+) {
+  const scopes: Record<AccessScope, number> = {
+    ip: 0,
+    different: 0,
+    browser: 0,
+  };
+  for (const value of evidence) {
+    if (!value) continue;
+    if (
+      value.state === "running" &&
+      !value.samples.length &&
+      !value.egressBefore &&
+      !value.egressAfter
+    )
+      continue;
+    const rating = accessRating(value, ip, now);
+    if (!rating.stale) scopes[rating.scope]++;
+  }
+  return {
+    ...scopes,
+    measured: scopes.ip + scopes.different + scopes.browser,
   };
 }
 export function canonicalIp(value?: string) {

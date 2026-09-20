@@ -85,7 +85,10 @@ export function IpLatency({
       : t("查询失败")
     : "";
 
-  const grid = (
+  const idle = !started && !data?.results.length && !error;
+  const grid = idle ? (
+    <p className="ip-latency-idle">{t("尚未测试全球延迟。")}</p>
+  ) : (
     <div
       className={
         layout === "meter"

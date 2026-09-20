@@ -1,9 +1,14 @@
 /**
- * Signal definitions + weighting for the "China user" risk score.
+ * Browser environment signal definitions.
+ *
+ * The signal lists are adapted from LinXiaoTao/FuckClaude (MIT). The
+ * detectors in this file are used by this project and their observations do
+ * not establish a user's country, identity, account status, or platform
+ * decision. The legacy similarity fields remain for compatibility with
+ * existing pure helpers; the UI must not present them as a risk score.
  *
  * This module is isomorphic: the `detect()` functions touch browser APIs
- * (document / navigator / Intl) but are ONLY invoked on the client from
- * `src/scripts/detect.ts`, so nothing here runs during SSR.
+ * (document / navigator / Intl) but are ONLY invoked on the client.
  */
 
 export type SignalId =
@@ -21,9 +26,13 @@ export type SignalId =
 export interface DetectOutcome {
   /** Human-readable detected value. */
   raw: string;
-  /** 0..1 "how China-like" similarity. */
-  score: number;
+  /** Observation state; missing state is inferred by the summary helper. */
+  status?: DetectionStatus;
+  /** Legacy compatibility field; it is not an account or country risk score. */
+  score?: number;
 }
+
+export type DetectionStatus = "observed" | "unknown" | "unavailable";
 
 export interface SignalDef {
   id: SignalId;
@@ -168,7 +177,11 @@ export function scoreTimezone(tz: string): number {
 
 function detectTimezone(): DetectOutcome {
   const tz = getTimezone();
-  return { raw: tz || "unknown", score: scoreTimezone(tz) };
+  return {
+    raw: tz || "unknown",
+    status: tz ? "observed" : "unknown",
+    score: scoreTimezone(tz),
+  };
 }
 
 function detectTimezoneOffset(): DetectOutcome {
@@ -176,7 +189,7 @@ function detectTimezoneOffset(): DetectOutcome {
   const utcHours = -offset / 60;
   const sign = utcHours >= 0 ? "+" : "-";
   const raw = `UTC${sign}${Math.abs(utcHours)}`;
-  return { raw, score: offset === -480 ? 0.7 : 0 };
+  return { raw, status: "observed", score: offset === -480 ? 0.7 : 0 };
 }
 
 function normLangs(): string[] {
@@ -225,7 +238,11 @@ export function scoreLanguages(langs: string[]): number {
 
 function detectLanguage(): DetectOutcome {
   const langs = normLangs();
-  return { raw: langs.join(", ") || "unknown", score: scoreLanguages(langs) };
+  return {
+    raw: langs.join(", ") || "unknown",
+    status: langs.length ? "observed" : "unknown",
+    score: scoreLanguages(langs),
+  };
 }
 
 function detectIntlLocale(): DetectOutcome {
@@ -240,7 +257,11 @@ function detectIntlLocale(): DetectOutcome {
   if (l.startsWith("zh-cn") || l.includes("hans") || l === "zh") score = 1;
   // zh-TW = Taiwan (supported region) → no score; zh-HK/zh-MO keep partial risk.
   else if (l.startsWith("zh") && !l.startsWith("zh-tw")) score = 0.5;
-  return { raw: locale || "unknown", score };
+  return {
+    raw: locale || "unknown",
+    status: locale ? "observed" : "unknown",
+    score,
+  };
 }
 
 function isFontAvailable(font: string, ctx: CanvasRenderingContext2D): boolean {
@@ -259,7 +280,8 @@ function isFontAvailable(font: string, ctx: CanvasRenderingContext2D): boolean {
 function detectFonts(): DetectOutcome {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  if (!ctx) return { raw: "canvas unavailable", score: 0 };
+  if (!ctx)
+    return { raw: "canvas unavailable", status: "unavailable", score: 0 };
 
   const sc = FONTS_SC.filter((f) => isFontAvailable(f, ctx));
   const tc = FONTS_TC.filter((f) => isFontAvailable(f, ctx));
@@ -274,13 +296,14 @@ function detectFonts(): DetectOutcome {
   const raw = hit.length
     ? hit.slice(0, 4).join(", ") + (hit.length > 4 ? "…" : "")
     : "none detected";
-  return { raw, score };
+  return { raw, status: "observed", score };
 }
 
 function detectVendorFonts(): DetectOutcome {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  if (!ctx) return { raw: "canvas unavailable", score: 0 };
+  if (!ctx)
+    return { raw: "canvas unavailable", status: "unavailable", score: 0 };
 
   const hit = FONTS_CN_VENDOR.filter((f) => isFontAvailable(f, ctx));
   // Any vendor face is near-conclusive; two or more leaves no doubt.
@@ -288,7 +311,7 @@ function detectVendorFonts(): DetectOutcome {
   const raw = hit.length
     ? hit.slice(0, 3).join(", ") + (hit.length > 3 ? "…" : "")
     : "none detected";
-  return { raw, score };
+  return { raw, status: "observed", score };
 }
 
 type UADataBrand = { brand: string; version: string };
@@ -315,7 +338,7 @@ export function scoreCnBrowser(probe: string): {
 function detectCnBrowser(): DetectOutcome {
   const brands = (uaData()?.brands ?? []).map((b) => b.brand).join(" ");
   const { name, score } = scoreCnBrowser(`${navigator.userAgent} ${brands}`);
-  return { raw: name ?? "none detected", score };
+  return { raw: name ?? "none detected", status: "observed", score };
 }
 
 /** Pure Chinese-device scoring, reused server-side against the User-Agent header. */
@@ -344,7 +367,7 @@ async function detectDeviceVendor(): Promise<DetectOutcome> {
     /* hints denied — fall back to the plain UA */
   }
   const { name, score } = scoreCnDevice(`${navigator.userAgent}${extra}`);
-  return { raw: name ?? "none detected", score };
+  return { raw: name ?? "none detected", status: "observed", score };
 }
 
 /** Pure emoji-vendor guess, reused server-side against the User-Agent header. */
@@ -376,33 +399,182 @@ function detectEmoji(): DetectOutcome {
   const ua = (navigator.userAgent || "").toLowerCase();
   const platform = (navigator.platform || "").toLowerCase();
   const { vendor, score } = scoreEmojiVendor(`${platform} ${ua}`);
-  return { raw: `${vendor} style`, score };
+  return {
+    raw: `${vendor} style`,
+    status: vendor === "Unknown" ? "unknown" : "observed",
+    score,
+  };
+}
+
+type ParsedIp = {
+  normalized: string;
+  ipv4: boolean;
+  groups: number[];
+};
+
+function parseIpv4(value: string): number[] | undefined {
+  const parts = value.split(".");
+  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part)))
+    return undefined;
+  const octets = parts.map(Number);
+  return octets.every((octet) => octet >= 0 && octet <= 255)
+    ? octets
+    : undefined;
+}
+
+function parseIpv6(value: string): number[] | undefined {
+  const input = value.toLowerCase();
+  if (input.includes("%") || input.includes("/")) return undefined;
+  const halves = input.split("::");
+  if (halves.length > 2) return undefined;
+  const parseHalf = (half: string) => {
+    if (!half) return [];
+    const parts = half.split(":");
+    const groups: number[] = [];
+    for (const part of parts) {
+      if (part.includes(".")) {
+        const octets = parseIpv4(part);
+        if (!octets || part !== parts.at(-1)) return undefined;
+        groups.push((octets[0] << 8) | octets[1], (octets[2] << 8) | octets[3]);
+      } else if (/^[\da-f]{1,4}$/.test(part)) {
+        groups.push(Number.parseInt(part, 16));
+      } else {
+        return undefined;
+      }
+    }
+    return groups;
+  };
+  const left = parseHalf(halves[0]);
+  const right = parseHalf(halves[1] ?? "");
+  if (!left || !right) return undefined;
+  if (halves.length === 1) return left.length === 8 ? left : undefined;
+  const missing = 8 - left.length - right.length;
+  return missing > 0
+    ? [...left, ...Array(missing).fill(0), ...right]
+    : undefined;
+}
+
+function parseIp(value: string): ParsedIp | undefined {
+  const input = value.trim().replace(/^\[|\]$/g, "");
+  if (!input || /\s/.test(input)) return undefined;
+  const ipv4 = parseIpv4(input);
+  if (ipv4)
+    return {
+      normalized: ipv4.join("."),
+      ipv4: true,
+      groups: [(ipv4[0] << 8) | ipv4[1], (ipv4[2] << 8) | ipv4[3]],
+    };
+  const groups = parseIpv6(input);
+  return groups
+    ? { normalized: input.toLowerCase(), ipv4: false, groups }
+    : undefined;
+}
+
+function nonPublicIpv4(octets: number[]) {
+  const [a, b] = octets;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 0) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    (a === 198 && b === 51) ||
+    (a === 203 && b === 0) ||
+    a >= 224
+  );
+}
+
+function nonPublicIp(parsed: ParsedIp) {
+  if (parsed.ipv4)
+    return nonPublicIpv4(parsed.normalized.split(".").map(Number));
+  const g = parsed.groups;
+  const mapped = g.slice(0, 5).every((value) => value === 0) && g[5] === 0xffff;
+  if (mapped) {
+    return nonPublicIpv4([g[6] >> 8, g[6] & 0xff, g[7] >> 8, g[7] & 0xff]);
+  }
+  return (
+    g.every((value) => value === 0) ||
+    (g.slice(0, 7).every((value) => value === 0) && g[7] === 1) ||
+    (g[0] & 0xfe00) === 0xfc00 ||
+    (g[0] & 0xffc0) === 0xfe80 ||
+    (g[0] & 0xff00) === 0xff00 ||
+    (g[0] === 0x2001 && g[1] === 0x0db8) ||
+    (g[0] === 0x2001 && g[1] === 0x0010)
+  );
+}
+
+/** Return a syntactically valid, publicly routable IP candidate only. */
+export function normalizePublicIp(value: string): string | undefined {
+  const parsed = parseIp(value);
+  return parsed && !nonPublicIp(parsed) ? parsed.normalized : undefined;
+}
+
+export type IceCandidateScope = "public" | "non-public" | "unknown";
+
+export interface IceCandidateAddress {
+  raw: string;
+  ip?: string;
+  scope: IceCandidateScope;
+}
+
+/** Parse the address field from an actual ICE candidate line. */
+export function parseIceCandidateAddress(
+  candidate: string,
+): IceCandidateAddress {
+  const line = candidate.trim().replace(/^a=/i, "");
+  const tokens = line.replace(/^candidate:/i, "").split(/\s+/);
+  const raw = tokens[4] ?? "";
+  const parsed = parseIp(raw);
+  if (!parsed) return { raw, scope: "unknown" };
+  return {
+    raw,
+    ip: parsed.normalized,
+    scope: normalizePublicIp(raw) ? "public" : "non-public",
+  };
 }
 
 function detectWebrtcLeak(): Promise<DetectOutcome> {
   return new Promise((resolve) => {
     if (typeof window === "undefined" || !window.RTCPeerConnection) {
-      resolve({ raw: "no leak detected", score: 0 });
+      resolve({ raw: "WebRTC unavailable", status: "unavailable" });
       return;
     }
 
     let resolved = false;
-    const ips: string[] = [];
+    let sawCandidate = false;
+    let sawUnknown = false;
+    let sawError = false;
+    const publicIps: string[] = [];
+    const nonPublicIps: string[] = [];
     let pc: RTCPeerConnection | null = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const finish = () => {
+    const candidateOutcome = (): DetectOutcome | undefined => {
+      if (publicIps.length)
+        return {
+          raw: `public candidate observed (${publicIps.slice(0, 2).join(", ")})`,
+          status: "observed",
+        };
+      if (nonPublicIps.length)
+        return {
+          raw: `non-public candidate observed (${nonPublicIps.slice(0, 2).join(", ")})`,
+          status: "observed",
+        };
+      return undefined;
+    };
+
+    const finish = (outcome: DetectOutcome) => {
       if (resolved) return;
       resolved = true;
+      clearTimeout(timer);
       try {
         if (pc) pc.close();
       } catch {}
-
-      if (ips.length === 0) {
-        resolve({ raw: "no leak detected", score: 0 });
-      } else {
-        const raw = ips.slice(0, 2).join(", ");
-        resolve({ raw: `candidate leak (${raw})`, score: 0.5 });
-      }
+      resolve(outcome);
     };
 
     try {
@@ -411,27 +583,65 @@ function detectWebrtcLeak(): Promise<DetectOutcome> {
       });
       pc.onicecandidate = (e) => {
         if (!e.candidate || !e.candidate.candidate) {
-          finish();
+          const observed = candidateOutcome();
+          if (observed) finish(observed);
+          else
+            finish({
+              raw: sawError
+                ? "ICE candidate check failed"
+                : sawUnknown
+                  ? "ICE candidate address unavailable"
+                  : "no ICE address candidate observed",
+              status: sawError ? "unavailable" : "unknown",
+            });
           return;
         }
-        const match =
-          /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/i.exec(
-            e.candidate.candidate,
-          );
-        if (match && match[1] && !ips.includes(match[1])) {
-          ips.push(match[1]);
-        }
+        sawCandidate = true;
+        const address = parseIceCandidateAddress(e.candidate.candidate);
+        if (address.scope === "public" && address.ip) {
+          if (!publicIps.includes(address.ip)) publicIps.push(address.ip);
+        } else if (address.scope === "non-public" && address.ip) {
+          if (!nonPublicIps.includes(address.ip)) nonPublicIps.push(address.ip);
+        } else sawUnknown = true;
+      };
+      pc.onicecandidateerror = () => {
+        sawError = true;
       };
 
       pc.createDataChannel("");
       pc.createOffer()
         .then((sdp) => pc?.setLocalDescription(sdp))
-        .catch(() => finish());
+        .catch(() =>
+          finish(
+            candidateOutcome() ?? {
+              raw: "ICE candidate check failed",
+              status: "unavailable",
+            },
+          ),
+        );
     } catch {
-      finish();
+      finish(
+        candidateOutcome() ?? {
+          raw: "WebRTC check unavailable",
+          status: "unavailable",
+        },
+      );
     }
 
-    setTimeout(finish, 1000);
+    timer = setTimeout(
+      () =>
+        finish(
+          candidateOutcome() ?? {
+            raw: sawError
+              ? "ICE candidate check failed"
+              : sawCandidate
+                ? "ICE candidate collection timed out"
+                : "WebRTC check timed out",
+            status: sawError ? "unavailable" : "unknown",
+          },
+        ),
+      1000,
+    );
   });
 }
 
