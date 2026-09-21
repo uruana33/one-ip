@@ -13,6 +13,13 @@ export class RouteErrorBoundary extends Component<
     return { failed: true };
   }
 
+  componentDidCatch(error: unknown) {
+    console.error("[route-render-error]", {
+      name: error instanceof Error ? error.name : "Error",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   render() {
     if (!this.state.failed) return this.props.children;
     return (

@@ -127,6 +127,19 @@ test("SEO resources and document metadata bypass the SPA fallback", async () => 
   assert.match(body, /rel="canonical" href="https:\/\/ip\.gogoxy\.com\/network\/egress"/);
   assert.match(body, /property="og:url" content="https:\/\/ip\.gogoxy\.com\/network\/egress"/);
   assert.match(body, /application\/ld\+json/);
+
+  const missingAsset = await worker.fetch(request("/assets/old-chunk.js"), {
+    ...env,
+    ASSETS: {
+      fetch: async () =>
+        new Response(html, { headers: { "Content-Type": "text/html" } }),
+    },
+  });
+  assert.equal(missingAsset.status, 404);
+  assert.equal(
+    missingAsset.headers.get("Content-Type"),
+    "text/plain; charset=utf-8",
+  );
 });
 test("unknown APIs return JSON 404 instead of the SPA", async () => {
   const response = await worker.fetch(request("/api/not-found"), env);

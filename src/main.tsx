@@ -6,9 +6,11 @@ import { QueryProvider } from "@/components/providers/query-provider";
 import { RouteProgress } from "@/components/providers/route-progress";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { initializeLocale } from "@/i18n";
+import { installPreloadRecovery } from "@/lib/preload-recovery";
 import { Provider } from "jotai";
 import ReactDOM from "react-dom/client";
 
+installPreloadRecovery(window, import.meta.env.VITE_BUILD_TIME);
 initializeLocale();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

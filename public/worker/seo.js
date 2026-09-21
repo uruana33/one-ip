@@ -172,11 +172,20 @@ export async function handleSeo(request, env) {
     return textResponse(ROBOTS, "text/plain; charset=utf-8");
   if (url.pathname === "/sitemap.xml") return env.ASSETS.fetch(request);
 
-  if (
-    url.pathname.startsWith("/api/") ||
-    url.pathname.startsWith("/assets/") ||
-    url.pathname === "/favicon.svg"
-  )
+  if (url.pathname.startsWith("/assets/")) {
+    const asset = await env.ASSETS.fetch(request);
+    const contentType = asset.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/html")) return asset;
+    return new Response("Not found", {
+      status: 404,
+      headers: {
+        "cache-control": "no-store",
+        "content-type": "text/plain; charset=utf-8",
+      },
+    });
+  }
+
+  if (url.pathname.startsWith("/api/") || url.pathname === "/favicon.svg")
     return env.ASSETS.fetch(request);
 
   const response = await env.ASSETS.fetch(request);
