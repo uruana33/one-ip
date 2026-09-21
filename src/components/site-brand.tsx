@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Brand tile: a gradient badge holding the product's signature motif —
- * one source fanning out into two routes, the same split-egress diagram
- * the home page is built around.
+ * one source node fanning out into two probe echoes (domestic / overseas),
+ * the same split-egress diagram the home page is built around.
  */
 export function BrandMark({ className }: { className?: string }) {
   const gradientId = `brand-grad-${useId().replace(/:/g, "")}`;
@@ -20,7 +20,7 @@ export function BrandMark({ className }: { className?: string }) {
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#2563eb" />
-          <stop offset="100%" stopColor="#06b6d4" />
+          <stop offset="100%" stopColor="#0ea5e9" />
         </linearGradient>
         <linearGradient id={`${gradientId}-sheen`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#fff" stopOpacity="0.18" />
@@ -32,25 +32,16 @@ export function BrandMark({ className }: { className?: string }) {
       <g
         fill="none"
         stroke="#fff"
-        strokeWidth="1.9"
+        strokeWidth="1.85"
         strokeLinecap="round"
-        opacity="0.95"
+        opacity="0.92"
       >
-        <path d="M 8.2 14 C 12 14, 12.8 8.7, 17.4 8.7" />
-        <path d="M 8.2 14 C 12 14, 12.8 19.3, 17.4 19.3" />
+        <path d="M 7.4 14 C 11.8 14, 11.8 8.3, 16.6 8.3" />
+        <path d="M 7.4 14 C 11.8 14, 11.8 19.7, 16.6 19.7" />
       </g>
-      <circle
-        cx="6.4"
-        cy="14"
-        r="2.3"
-        fill="none"
-        stroke="#fff"
-        strokeWidth="1.9"
-      />
-      <g fill="#fff">
-        <circle cx="20.4" cy="8.7" r="1.8" />
-        <circle cx="20.4" cy="19.3" r="1.8" />
-      </g>
+      <circle cx="6.3" cy="14" r="2.2" fill="#fff" />
+      <circle cx="20.7" cy="8.3" r="2.2" fill="#fff" />
+      <circle cx="20.7" cy="19.7" r="2.2" fill="#bae6fd" />
     </svg>
   );
 }
@@ -60,12 +51,12 @@ export function SiteBrand({ className }: { className?: string }) {
     <Link
       to="/"
       className={cn("site-brand", className)}
-      aria-label={t("IP 网络工具")}
+      aria-label={t("出口观测台")}
     >
       <BrandMark />
       <span className="site-brand-name" aria-hidden="true">
-        <b className="site-brand-name-ip">IP</b>
-        {t("网络工具")}
+        <b className="site-brand-name-ip">{t("出口")}</b>
+        {t("观测台")}
       </span>
     </Link>
   );

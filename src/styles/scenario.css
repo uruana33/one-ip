@@ -637,8 +637,172 @@
   font-family: var(--font-sans);
 }
 
+/* Column headings */
+.ip-route-column-label {
+  fill: var(--muted-foreground);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+
+/* Edges: stroke-only curves; inline style sets the width from path share. */
+.ip-route-edge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--foreground) 20%, transparent);
+  stroke-linecap: round;
+}
+
+.ip-route-edge.is-tier1 {
+  stroke: color-mix(in srgb, var(--primary) 62%, transparent);
+}
+
+.ip-route-edge-label {
+  fill: var(--muted-foreground);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+/* Nodes: card-like tiles; origin / current / Tier 1 get accents. */
+.ip-route-node rect {
+  fill: var(--card);
+  stroke: var(--line-strong, var(--border));
+  stroke-width: 1;
+  transition:
+    stroke 140ms ease,
+    fill 140ms ease;
+}
+
+.ip-route-node-key {
+  fill: var(--muted-foreground);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.ip-route-node-name {
+  fill: var(--foreground);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.ip-route-node.is-origin rect {
+  fill: color-mix(in srgb, var(--primary) 7%, var(--card));
+}
+
+.ip-route-node.is-current rect {
+  fill: color-mix(in srgb, var(--primary) 10%, var(--card));
+  stroke: color-mix(in srgb, var(--primary) 55%, transparent);
+}
+
+.ip-route-node.is-current .ip-route-node-key {
+  fill: var(--primary);
+}
+
+.ip-route-node.is-tier1 rect {
+  stroke: color-mix(in srgb, var(--primary) 60%, transparent);
+  stroke-width: 1.4;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ip-route-node:hover rect {
+    stroke: color-mix(in srgb, var(--primary) 55%, transparent);
+  }
+}
+
 .ip-route-graph-list {
   margin-top: 10px;
+}
+
+.ip-route-list-heading {
+  margin: 12px 0 2px;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ip-route-list-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 2px 10px;
+}
+
+.ip-route-list-row + .ip-route-list-row {
+  border-top: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
+}
+
+.ip-route-list-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ip-route-list-main strong {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.ip-route-list-main span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ip-route-list-main small {
+  margin-left: 6px;
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+}
+
+/* Share value + inline bar under each row. */
+.ip-route-list-row em {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.ip-route-list-row i {
+  position: absolute;
+  bottom: 4px;
+  left: 2px;
+  display: block;
+  height: 2px;
+  max-width: calc(100% - 4px);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+
+.ip-route-list-row.is-tier1 i {
+  background: color-mix(in srgb, var(--primary) 60%, transparent);
+}
+
+.ip-route-list-row.is-tier1 strong {
+  color: var(--primary);
+}
+
+.ip-route-list-row.is-origin {
+  margin: 0 -8px;
+  padding-right: 10px;
+  padding-left: 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
 }
 
 .ip-route-graph-summary {

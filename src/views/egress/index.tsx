@@ -11,9 +11,9 @@ import { Tabs } from "radix-ui";
 type TabValue = "exits" | "dns" | "cdn";
 
 const tabs = [
-  { value: "exits", label: t("分流出口") },
+  { value: "exits", label: t("网站出口") },
   { value: "dns", label: t("DNS 出口") },
-  { value: "cdn", label: t("CDN 节点") },
+  { value: "cdn", label: t("CDN 采样") },
 ] as const;
 
 function resolveTab(value: string | null): TabValue {
@@ -30,17 +30,17 @@ export default function EgressPage() {
   const tab = resolveTab(params.get("tab"));
 
   useEffect(() => {
-    document.title = t("出口检测 - IP 网络工具");
+    document.title = t("分流出口检测 · 网站／DNS／CDN · 出口观测台");
   }, []);
 
   return (
     <div className="space-y-3">
       <header className="page-header">
         <div className="page-header-text">
-          <h1>{t("出口检测")}</h1>
+          <h1>{t("分流出口")}</h1>
           <p>
             {t(
-              "看流量从本机走到哪条公网 IP。颜色相同就是同一条出口；DNS 和 CDN 是另外两条路径。",
+              "按站点、解析器与 CDN 来源查看实际出口；不同地址不能直接证明规则已完美生效，但足以定位分流问题。",
             )}
           </p>
         </div>

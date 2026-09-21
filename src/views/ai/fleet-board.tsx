@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { CountryFlag } from "@/components/country-flag";
 import { LatencyBadge } from "@/components/latency-badge";
@@ -169,12 +170,16 @@ export function AiFleetBoard() {
   const us = campStats(usItems, pending);
   const cn = campStats(cnItems, pending);
 
+  useEffect(() => {
+    document.title = t("AI 平台出口与状态 · 出口观测台");
+  }, []);
+
   return (
     <div className="module-overview ai-fleet space-y-4">
       <PageHeading
-        title={t("AI 阵营对阵")}
+        title={t("AI 出口")}
         description={t(
-          "按阵营对比各平台连通性与出口属性；站点响应不等于登录或模型可用。",
+          "按平台与线路分组查看连通与出口；公开端点可响应 ≠ 可登录、可对话或已获得地区授权。",
         )}
         actions={
           <ActionButton

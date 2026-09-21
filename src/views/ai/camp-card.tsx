@@ -4,7 +4,8 @@ import { SiteLogo } from "@/components/site-logo";
 import { IpText, Pending } from "@/components/toolkit";
 import { locale, t } from "@/i18n";
 import { queryKeys } from "@/lib/query-keys";
-import { lookupIp } from "@/views/ip/api";
+import { lookupCross, lookupIp } from "@/views/ip/api";
+import { consensusPlace } from "@/views/ip/model/place";
 import { useQuery } from "@tanstack/react-query";
 import { attributeTags, regionTag } from "./attribute-tags";
 import type { DefaultExitSource } from "./default-exit";
@@ -183,11 +184,28 @@ function SplitRoute({ source }: { source: DefaultExitSource }) {
     retry: false,
     refetchOnWindowFocus: false,
   });
+  const cross = useQuery({
+    queryKey: queryKeys.ip.cross(source.ip ?? ""),
+    enabled: Boolean(source.ip),
+    queryFn: ({ signal }) => lookupCross(source.ip!, signal),
+    staleTime: 300_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
   const geo = lookup.data?.geo;
+  const crossData = cross.isError || cross.isFetching ? undefined : cross.data;
+  const place = lookup.data
+    ? consensusPlace(lookup.data.coffee, crossData ?? null)
+    : undefined;
   const geoLine =
-    [geo?.country, geo?.city, geo?.isp].filter(Boolean).join(" · ") || null;
+    place?.line !== "未知位置"
+      ? place?.line
+      : [geo?.country, geo?.city, geo?.isp].filter(Boolean).join(" · ") || null;
   const tags = lookup.data
-    ? attributeTags(lookup.data.coffee, lookup.data.risk)
+    ? attributeTags(lookup.data.coffee, lookup.data.risk, crossData, {
+        crossPending: cross.isFetching,
+        crossError: cross.isError,
+      })
     : null;
   return (
     <div className="ai-hero-route">
@@ -200,7 +218,9 @@ function SplitRoute({ source }: { source: DefaultExitSource }) {
           {source.ip ? (
             <CopyButton value={source.ip} className="ai-hero-copy" />
           ) : null}
-          {geo?.country_code ? <CountryFlag code={geo.country_code} /> : null}
+          {(place?.country_code ?? geo?.country_code) ? (
+            <CountryFlag code={place?.country_code ?? geo?.country_code} />
+          ) : null}
         </span>
       </div>
       <p className="ai-hero-geo" title={geoLine ?? undefined}>
@@ -236,7 +256,7 @@ export function CampCard({
   item: AiNetworkItem;
   pending: boolean;
 }) {
-  const { domain, platform, result, exit, lookup } = item;
+  const { domain, platform, result, exit, lookup, cross } = item;
   if (!platform) return null;
   const isPlatformExit = Boolean(platform.traceDomain);
   const median = result?.median;
@@ -244,9 +264,17 @@ export function CampCard({
   const online = median != null && !item.resultStale;
   const geo = lookup.data?.geo;
   const coffee = lookup.data?.coffee;
-  const countryCode = geo?.country_code ?? exit.countryCode;
+  const crossData =
+    cross?.isError || cross?.isFetching ? undefined : cross?.data;
+  const place = lookup.data
+    ? consensusPlace(lookup.data.coffee, crossData ?? null)
+    : undefined;
+  const countryCode =
+    place?.country_code ?? geo?.country_code ?? exit.countryCode;
   const geoLine =
-    [geo?.country, geo?.city, geo?.isp].filter(Boolean).join(" · ") || null;
+    place?.line !== "未知位置"
+      ? place?.line
+      : [geo?.country, geo?.city, geo?.isp].filter(Boolean).join(" · ") || null;
   const asnLine = coffee
     ? [
         coffee.asn ? `AS${coffee.asn}` : null,
@@ -263,7 +291,10 @@ export function CampCard({
       : null;
   const tags = lookup.data
     ? [
-        ...attributeTags(coffee, lookup.data.risk),
+        ...attributeTags(coffee, lookup.data.risk, crossData, {
+          crossPending: cross?.isFetching,
+          crossError: cross?.isError,
+        }),
         ...(() => {
           const tag = isPlatformExit
             ? regionTag(platform.camp, countryCode)

@@ -57,7 +57,7 @@ const columns: ColumnDef<RtcResult>[] = [
 export default function WebRtcPage() {
   const [round, setRound] = useState(0);
   useEffect(() => {
-    document.title = t("WebRTC 出口检测");
+    document.title = t("WebRTC 出口对照 · 出口观测台");
   }, []);
   const query = useQuery({
     queryKey: ["webrtc-diagnostic", round],
@@ -68,10 +68,20 @@ export default function WebRtcPage() {
   });
   return (
     <>
+      <header className="page-header">
+        <div className="page-header-text">
+          <h1>{t("UDP 出口和网页出口一致吗？")}</h1>
+          <p>
+            {t(
+              "仅建立数据通道，不申请摄像头与麦克风。结果用于核对路由，不单独作为隐私审计结论。",
+            )}
+          </p>
+        </div>
+      </header>
       <Card className="mb-3">
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-sm">{t("WebRTC 出口检测")}</CardTitle>
+            <CardTitle className="text-sm">{t("WebRTC 出口对照")}</CardTitle>
             <ActionButton
               size="sm"
               busy={query.isFetching}

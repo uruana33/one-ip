@@ -219,13 +219,13 @@ export async function runWebRtc(_: void, signal: AbortSignal) {
   const verdict = !effectiveBaseline
     ? t("已采集到 UDP 出口，但 HTTP 基准获取失败，无法判断是否一致。")
     : different
-      ? t("观测到不同 UDP 地址，与 HTTP 出口对照不一致。")
+      ? t("观测到与 HTTP 不同的 UDP 地址，请核对代理／TUN 的 UDP 规则。")
       : splitTunnel
         ? t("不同 STUN 端点返回了不同 UDP 地址，请结合 IP 族核对路由。")
         : udpBlocked
           ? t("HTTPS 正常但未发现公网 STUN 地址，UDP 可能已被阻断。")
           : publicResults.length === 0
-            ? t("未采集到公网候选地址，不能据此判定安全。")
+            ? t("未采集到公网候选；可能被限制或 UDP 被阻断，不能据此判定安全。")
             : comparablePublicResults.length === 0
               ? t("STUN 只返回了不同 IP 族地址，无法与 HTTP 对照判断。")
               : t("本次采样的公网 UDP 出口与 HTTP 出口一致。");

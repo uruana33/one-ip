@@ -73,8 +73,8 @@ export default function LookupPage() {
 
   useEffect(() => {
     document.title = classified.value
-      ? t("{0} · 地址查询", [classified.value])
-      : t("地址查询 - IP 网络工具");
+      ? t("{0} 的质量分与归属 · 出口观测台", [classified.value])
+      : t("IP 质量与归属查询 · 出口观测台");
   }, [classified.value]);
 
   useEffect(() => {
@@ -118,6 +118,7 @@ export default function LookupPage() {
       tone="display"
       value={classified.value || raw}
       placeholder={t("输入 IP 或网站")}
+      label={t("查看质量分")}
       busy={false}
       onSubmit={submit}
     />
@@ -147,7 +148,7 @@ export default function LookupPage() {
           {unknown ? (
             <article className="ip-folio">
               <header className="ip-folio-mast">
-                <h1 className="sr-only">{t("地址查询")}</h1>
+                <h1 className="sr-only">{t("IP 质量")}</h1>
                 <div className="ip-folio-query">
                   <div className="ip-folio-query-field">{form}</div>
                 </div>
@@ -178,7 +179,7 @@ export default function LookupPage() {
       ) : (
         <article className="ip-folio ip-folio-idle">
           <header className="ip-folio-mast">
-            <h1 className="sr-only">{t("地址查询")}</h1>
+            <h1 className="sr-only">{t("IP 质量")}</h1>
             <div className="ip-folio-query">
               <div className="ip-folio-query-field">{form}</div>
             </div>

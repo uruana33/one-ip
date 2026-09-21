@@ -49,6 +49,71 @@
   letter-spacing: -0.01em;
 }
 
+/* Hero CTA row */
+.home-hero-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.home-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border: 1px solid var(--line-strong, var(--border));
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+  transition:
+    transform 150ms var(--ease-enter, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.home-cta-primary {
+  border-color: transparent;
+  background: linear-gradient(120deg, #2563eb, #0ea5e9);
+  color: #fff;
+  box-shadow: 0 8px 18px -10px
+    color-mix(in srgb, var(--primary) 70%, transparent);
+}
+
+.home-cta-primary svg {
+  transition: transform 150ms var(--ease-enter, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .home-cta:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+    box-shadow: 0 8px 16px -12px
+      color-mix(in srgb, var(--primary) 55%, transparent);
+  }
+
+  .home-cta-primary:hover {
+    border-color: transparent;
+  }
+
+  .home-cta-primary:hover svg {
+    transform: translateX(2px);
+  }
+}
+
+.home-cta:active {
+  transform: scale(0.97);
+  transition-duration: 0s;
+}
+
 /* ---------- Verdict banner ---------- */
 .home-verdict {
   --verdict: var(--muted-foreground);

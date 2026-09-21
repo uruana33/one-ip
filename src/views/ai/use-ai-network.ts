@@ -3,8 +3,9 @@ import { t } from "@/i18n";
 import { trace } from "@/lib/network";
 import { queryKeys } from "@/lib/query-keys";
 import { withDetectionAnimation } from "@/lib/with-feedback";
-import { lookupIp } from "@/views/ip/api";
+import { lookupCross, lookupIp } from "@/views/ip/api";
 import type { CoffeeLookup } from "@/views/ip/coffee";
+import type { CrossIntel } from "@/views/ip/model/cross-intel";
 import {
   useQueries,
   useQuery,
@@ -45,6 +46,7 @@ export type AiNetworkItem = {
   /** Cross-checked default egress; present only on platforms without a trace endpoint. */
   defaultExit?: DefaultExitResult;
   lookup: UseQueryResult<CoffeeLookup, Error>;
+  cross?: UseQueryResult<CrossIntel, Error>;
 };
 
 export function useAiNetworkQueries(
@@ -142,6 +144,28 @@ export function useAiNetworkQueries(
       };
     }),
   });
+  const attributeIps = [
+    ...new Set([
+      ...exitInfos.flatMap((exit) => (exit.ip ? [exit.ip] : [])),
+      ...(defaultExitQuery.data?.sources ?? []).flatMap((source) =>
+        source.ip ? [source.ip] : [],
+      ),
+    ]),
+  ];
+  const crossQueries = useQueries({
+    queries: attributeIps.map((ip) => ({
+      queryKey: queryKeys.ip.cross(ip),
+      enabled: true,
+      queryFn: ({ signal }: { signal: AbortSignal }) => lookupCross(ip, signal),
+      staleTime: 300_000,
+      retry: false,
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const crossByIp = new Map(
+    attributeIps.map((ip, index) => [ip, crossQueries[index]] as const),
+  );
+  const attributesBusy = crossQueries.some((cross) => cross.isFetching);
   const items: AiNetworkItem[] = domains.map((domain, index) => ({
     domain,
     platform: platforms[index],
@@ -154,6 +178,7 @@ export function useAiNetworkQueries(
         ? defaultExitQuery.data
         : undefined,
     lookup: lookups[index],
+    cross: exitInfos[index].ip ? crossByIp.get(exitInfos[index].ip) : undefined,
   }));
   if (probeQuery.data)
     items.sort((a, b) => {
@@ -174,12 +199,17 @@ export function useAiNetworkQueries(
         lookups,
         exitInfos.map((exit) => Boolean(exit.ip)),
       );
+      const crossRefreshQueries = selectRefreshableAiQueries(
+        crossQueries,
+        attributeIps.map(() => true),
+      );
       const [next] = await withDetectionAnimation(() =>
         Promise.all([
           probeQuery.refetch({ throwOnError: true }),
           needsDefaultExit ? defaultExitQuery.refetch() : Promise.resolve(null),
           ...traceQueries.map((exit) => exit.refetch()),
           ...lookupQueries.map((lookup) => lookup.refetch()),
+          ...crossRefreshQueries.map((cross) => cross.refetch()),
         ]),
       );
       if (next.data?.every((result) => result.median != null))
@@ -192,5 +222,5 @@ export function useAiNetworkQueries(
     }
   };
 
-  return { probeQuery, busy, items, refresh };
+  return { probeQuery, busy: busy || attributesBusy, items, refresh };
 }

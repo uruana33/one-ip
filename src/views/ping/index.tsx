@@ -61,7 +61,7 @@ export default function PingPage({
   const [stopped, setStopped] = useState(false);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => {
-    if (!hideSearch) document.title = t("各地快不快 - IP 网络工具");
+    if (!hideSearch) document.title = t("全球延迟抽样 · 出口观测台");
     return () => controller.current?.abort();
   }, [hideSearch]);
   const catalog = useQuery({

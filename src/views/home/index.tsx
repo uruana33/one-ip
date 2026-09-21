@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { ActionButton } from "@/components/toolkit";
 import { t } from "@/i18n";
 import { isHomeQueryKey, queryKeys } from "@/lib/query-keys";
@@ -6,6 +7,7 @@ import { lookupCross, lookupIp } from "@/views/ip/api";
 import { assessQuality } from "@/views/ip/model/quality";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowRight,
   CircleHelp,
   LoaderCircle,
   ScanSearch,
@@ -34,7 +36,7 @@ export function HomePage() {
     }
   };
   useEffect(() => {
-    document.title = t("首页 - IP 网络工具");
+    document.title = t("出口观测台与 IP 质量 · ip.gogoxy.com");
   }, []);
   const probes = useQueries({
     queries: [
@@ -166,7 +168,7 @@ export function HomePage() {
     verdictState === "pending"
       ? t("正在探测出口…")
       : verdictState === "different"
-        ? t("国内与外部探测观察到不同出口。")
+        ? t("本轮观测到不同出口——分流可能已生效，建议再做网站分流核对。")
         : verdictState === "same"
           ? t("两次探测观察到同一公网出口。")
           : verdictState === "partial"
@@ -187,12 +189,26 @@ export function HomePage() {
         <div className="home-hero-copy min-w-0">
           <p className="home-hero-eyebrow">
             <ScanSearch className="size-3" aria-hidden="true" />
-            {t("出口观测")}
+            {t("代理／分流用户专用")}
           </p>
-          <h1 className="home-hero-title">{t("网络概览")}</h1>
+          <h1 className="home-hero-title">{t("出口观测台")}</h1>
           <p className="home-hero-sub">
-            {t("双探针对照你的公网出口、归属地与线路质量")}
+            {t(
+              "国内与海外双探针对照真实出口，并同步查看质量分与机房／代理特征标记。不承诺任何平台的通过率。",
+            )}
           </p>
+          <div className="home-hero-ctas">
+            <Link to="/network/egress" className="home-cta home-cta-primary">
+              {t("检测分流出口")}
+              <ArrowRight className="size-3.5" aria-hidden="true" />
+            </Link>
+            <Link to="/network/ip" className="home-cta">
+              {t("查看 IP 质量分")}
+            </Link>
+            <Link to="/ai/" className="home-cta">
+              {t("AI 平台出口与状态")}
+            </Link>
+          </div>
         </div>
         <ActionButton
           size="sm"

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { NumberTicker } from "@/components/number-ticker";
 import { SiteLogo } from "@/components/site-logo";
@@ -238,6 +238,9 @@ export default function StatusPage() {
     })),
   );
   const { healthyCount, unknownCount } = summary;
+  useEffect(() => {
+    document.title = t("AI 与云服务官方状态 · 出口观测台");
+  }, []);
   const groups = GROUP_ORDER.map((group) => ({
     group,
     items: allRows
@@ -249,7 +252,9 @@ export default function StatusPage() {
     <div className="status-wall">
       <PageHeading
         title={t("服务状态")}
-        description={t("官方状态与端点探测（分开标注）")}
+        description={t(
+          "优先读取官方状态；无官方状态页时降级为可达性参考，并明确标注「仅供参考」。",
+        )}
       />
       <section className="sw-hero">
         <div className="sw-hero-top">

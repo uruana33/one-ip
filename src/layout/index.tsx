@@ -144,8 +144,14 @@ export function AppLayout() {
             <span className="app-footer-copy">
               © {new Date().getFullYear()}
             </span>
+            <span className="app-footer-tagline">
+              {t("面向代理与分流用户的出口诊断工作台 · 不提供纯净度排名")}
+            </span>
           </div>
           <nav className="app-footer-nav" aria-label={t("站点链接")}>
+            <Link className="app-footer-link" to="/docs/health">
+              API
+            </Link>
             <Link className="app-footer-link" to="/terms">
               {t("使用条款")}
             </Link>

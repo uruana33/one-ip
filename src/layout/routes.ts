@@ -2,14 +2,14 @@ import { t } from "@/i18n";
 import { aiPlatforms } from "@/views/ai/platforms";
 
 export const navigationRoutes = [
-  { value: "/", label: t("首页"), short: t("首页") },
-  { value: "/network/ip", label: t("地址查询"), short: t("查询") },
-  { value: "/ai/", label: t("AI 检测"), short: "AI" },
+  { value: "/", label: t("概览"), short: t("概览") },
+  { value: "/network/ip", label: t("IP 质量"), short: t("质量") },
+  { value: "/ai/", label: t("AI 出口"), short: "AI" },
   { value: "/status/", label: t("服务状态"), short: t("状态") },
-  { value: "/network/egress", label: t("出口检测"), short: t("出口") },
+  { value: "/network/egress", label: t("分流出口"), short: t("出口") },
 ] as const;
 export const toolGroups = {
-  network: [{ path: "/network/egress", label: t("出口检测") }],
+  network: [{ path: "/network/egress", label: t("分流出口") }],
   ai: aiPlatforms.map((platform) => ({
     path: `/ai/${platform.id}`,
     label: platform.name,

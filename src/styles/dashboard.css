@@ -1777,13 +1777,16 @@ a.sw-flip {
   color: var(--muted-foreground);
 }
 .home-page
-  :is(a, button, summary):not([data-slot="button"]):is(:hover, :focus-visible) {
+  :is(a, button, summary):not([data-slot="button"]):not(.home-cta):is(
+    :hover,
+    :focus-visible
+  ) {
   color: var(--primary);
 }
 .home-page
   :is(a, button, summary):not([data-slot="button"]):not(.underline-hover):not(
-    :where(.home-shortcuts a)
-  ):is(:hover, :focus-visible) {
+    .home-cta
+  ):not(:where(.home-shortcuts a)):is(:hover, :focus-visible) {
   text-decoration: underline;
   text-underline-offset: 4px;
 }

@@ -31,6 +31,7 @@ const StatusPage = lazy(() => import("@/views/status"));
 const ClaudeStatusPage = lazy(() => import("@/views/claude/status"));
 const GptStatusPage = lazy(() => import("@/views/gpt/status"));
 const PolicyPage = lazy(() => import("@/views/policy"));
+const DocsHealthPage = lazy(() => import("@/views/docs/health"));
 function Redirect({ to }: { to: string }) {
   const { search, hash } = useLocation();
   const { ip } = useParams();
@@ -63,6 +64,7 @@ export function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="terms" element={<PolicyPage page="terms" />} />
         <Route path="privacy" element={<PolicyPage page="privacy" />} />
+        <Route path="docs/health" element={<DocsHealthPage />} />
         <Route path="network/ip">
           <Route index element={<LookupPage />} />
           <Route path=":ip" element={<LookupPage />} />

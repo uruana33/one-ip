@@ -252,6 +252,21 @@ body {
   font-variant-numeric: tabular-nums;
   opacity: 0.72;
 }
+.app-footer-tagline {
+  margin-left: 2px;
+  padding-left: 10px;
+  border-left: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  font-size: 11.5px;
+  opacity: 0.62;
+}
+@media (max-width: 48rem) {
+  .app-footer-tagline {
+    flex-basis: 100%;
+    margin-left: 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+}
 .app-footer-nav {
   display: flex;
   flex-wrap: wrap;

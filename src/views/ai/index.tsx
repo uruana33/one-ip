@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { CountryFlag } from "@/components/country-flag";
 import {
   PrivacyToggle,
@@ -57,9 +58,17 @@ export default function PlatformDiagnostics({
     queryFn: ({ signal }) => trace("1.1.1.1", signal),
     retry: false,
   });
+  useEffect(() => {
+    document.title = t("{0} 网络出口检测 · 出口观测台", [platform.name]);
+  }, [platform.name]);
   return (
     <div className="ai-diagnostics">
-      <PageHeading title={t("{0} 网络检测", [platform.name])} description="" />
+      <PageHeading
+        title={t("{0}：出口与连通", [platform.name])}
+        description={t(
+          "这是本次浏览器访问公开端点的观测结果，不是账号可用性证明。",
+        )}
+      />
       <div className="ai-overview">
         <ToolCard
           title={

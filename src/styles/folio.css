@@ -1557,6 +1557,15 @@ a.ip-folio-score-source:active {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.ip-folio-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .ip-folio-card {
   min-width: 0;
   padding: 9px 11px;
@@ -1742,6 +1751,7 @@ a.ip-folio-score-source:active {
 }
 
 .ip-folio-fold {
+  min-width: 0; /* grid child: keep SVG/panel min-content from blowing out the page */
   border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   scroll-margin-top: 72px;
 }
@@ -1749,12 +1759,13 @@ a.ip-folio-score-source:active {
 .ip-folio-fold > summary {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 6px 12px;
   padding: 12px var(--folio-pad-x);
   cursor: pointer;
   list-style: none;
   user-select: none;
+  transition: background-color 140ms ease;
 }
 
 .ip-folio-fold > summary::-webkit-details-marker {
@@ -1764,6 +1775,7 @@ a.ip-folio-score-source:active {
 .ip-folio-fold-title {
   font-size: var(--folio-body);
   font-weight: 650;
+  letter-spacing: -0.01em;
 }
 
 .ip-folio-fold-hint {
@@ -1771,24 +1783,72 @@ a.ip-folio-score-source:active {
   color: var(--muted-foreground);
 }
 
+/* Chevron inside a chip: the mask keeps the glyph in currentColor. */
 .ip-folio-fold > summary::after {
   content: "";
-  width: 6px;
-  height: 6px;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
   margin-left: auto;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(45deg);
-  opacity: 0.45;
-  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  border: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 52%, transparent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+    center / 11px 11px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+    center / 11px 11px no-repeat;
+  transition:
+    transform 180ms var(--ease-enter, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color 140ms ease,
+    background-color 140ms ease;
 }
 
 .ip-folio-fold[open] > summary::after {
-  transform: rotate(225deg);
+  transform: rotate(180deg);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .ip-folio-fold > summary:hover {
+    background: color-mix(in srgb, var(--muted) 45%, transparent);
+  }
+
+  .ip-folio-fold > summary:hover::after {
+    border-color: color-mix(in srgb, var(--primary) 50%, transparent);
+    background: var(--primary);
+  }
+}
+
+.ip-folio-fold > summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 50%, transparent);
+  outline-offset: -2px;
+}
+
+/* Expanded content sits in an inset drawer so it reads as one unit. */
 .ip-folio-fold-body {
-  padding: 0 var(--folio-pad-x) 1.15rem;
+  margin: 2px var(--folio-pad-x) 14px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--muted) 30%, transparent);
+}
+
+.ip-folio-fold-body .ip-folio-card {
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: var(--card);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ip-folio-fold[open] .ip-folio-fold-body {
+    animation: ip-fold-in 220ms
+      var(--ease-enter, cubic-bezier(0.22, 1, 0.36, 1)) both;
+  }
+}
+
+@keyframes ip-fold-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
 }
 
 .ip-folio-record,

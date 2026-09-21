@@ -626,7 +626,7 @@ export function SplitTunnelVisualizer({
         </svg>
         <p className="text-[11px] text-muted-foreground leading-relaxed px-1">
           {t(
-            "连线只表示探针与回显地址的对应关系，不判断直连、代理或规则是否生效。",
+            "连线仅表示探针与回显地址的对应关系，不据此直接判定分流规则已生效。",
           )}
         </p>
       </div>
