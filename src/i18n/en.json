@@ -160,6 +160,7 @@
   "AI 与云服务官方状态 · 出口观测台": "Official status for AI & cloud services · EgressScope",
   "优先读取官方状态；无官方状态页时降级为可达性参考，并明确标注「仅供参考」。": "Official status first; where none exists we fall back to reachability signals, clearly marked as advisory.",
   "全球延迟抽样 · 出口观测台": "Global latency sampling · EgressScope",
+  "WHOIS／RDAP 查询 · 出口观测台": "WHOIS / RDAP lookup · EgressScope",
   "IP 健康报告 API · 出口观测台": "IP health report API · EgressScope",
   "一行 curl，查看出口画像": "One curl command to profile your egress",
   "返回质量分与机房／代理等特征标记，便于脚本化排查与节点切换后的对比。": "Returns quality scores and hosting/proxy flags — handy for scripted checks and before/after node-switch comparisons.",

@@ -101,6 +101,33 @@ test("backend source paths are never served", async () => {
     "SPA asset",
   );
 });
+test("SEO resources and document metadata bypass the SPA fallback", async () => {
+  const robots = await worker.fetch(request("/robots.txt"), env);
+  assert.equal(robots.headers.get("Content-Type"), "text/plain; charset=utf-8");
+  assert.match(await robots.text(), /Sitemap: https:\/\/ip\.gogoxy\.com\/sitemap\.xml/);
+
+  const sitemap = await worker.fetch(request("/sitemap.xml"), {
+    ...env,
+    ASSETS: {
+      fetch: async () =>
+        new Response("<?xml version=\"1.0\"?><urlset />", {
+          headers: { "Content-Type": "application/xml" },
+        }),
+    },
+  });
+  assert.equal(sitemap.headers.get("Content-Type"), "application/xml");
+
+  const html = `<!doctype html><html><head><title>home</title><meta name="description" content="home"><meta property="og:title" content="home"><meta property="og:description" content="home"><meta name="twitter:title" content="home"><meta name="twitter:description" content="home"></head><body></body></html>`;
+  const page = await worker.fetch(request("/network/egress"), {
+    ...env,
+    ASSETS: { fetch: async () => new Response(html, { headers: { "Content-Type": "text/html" } }) },
+  });
+  const body = await page.text();
+  assert.match(body, /<title>分流出口检测 · 网站／DNS／CDN · 出口观测台<\/title>/);
+  assert.match(body, /rel="canonical" href="https:\/\/ip\.gogoxy\.com\/network\/egress"/);
+  assert.match(body, /property="og:url" content="https:\/\/ip\.gogoxy\.com\/network\/egress"/);
+  assert.match(body, /application\/ld\+json/);
+});
 test("unknown APIs return JSON 404 instead of the SPA", async () => {
   const response = await worker.fetch(request("/api/not-found"), env);
   assert.equal(response.status, 404);

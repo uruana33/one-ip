@@ -72,10 +72,18 @@ export default function LookupPage() {
   const hasQuery = !!classified.value || !!raw.trim();
 
   useEffect(() => {
+    if (view === "whois") {
+      document.title = t("WHOIS／RDAP 查询 · 出口观测台");
+      return;
+    }
+    if (view === "ping") {
+      document.title = t("全球延迟抽样 · 出口观测台");
+      return;
+    }
     document.title = classified.value
       ? t("{0} 的质量分与归属 · 出口观测台", [classified.value])
       : t("IP 质量与归属查询 · 出口观测台");
-  }, [classified.value]);
+  }, [classified.value, view]);
 
   useEffect(() => {
     if (!pathValue) return;

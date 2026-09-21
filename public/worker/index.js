@@ -9,6 +9,7 @@ import { ipNetwork } from "./ip-network.js";
 import { ipType } from "./ip-type.js";
 import { mapConfig } from "./map.js";
 import { startPing, pingResult, pingNodes } from "./ping.js";
+import { handleSeo } from "./seo.js";
 import { normalizeStatus } from "./service-status.js";
 import services from "./services.json";
 import { cachedStatus, STATUS_CACHE_CONTROL } from "./status-cache.js";
@@ -52,7 +53,7 @@ export default {
         url.protocol = "http:";
         return fetch(new Request(url, request));
       }
-      return env.ASSETS.fetch(request);
+      return handleSeo(request, env);
     }
     try {
       const origin = request.headers.get("Origin");

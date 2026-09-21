@@ -85,6 +85,8 @@ test("site logos use HTTPS icon URLs rather than bundled files", () => {
 test("production assets exclude deleted content and backend source", () => {
   assert.ok(existsSync("dist/index.html"));
   assert.ok(existsSync("dist/app-update-checker.worker.js"));
+  assert.ok(existsSync("dist/robots.txt"));
+  assert.ok(existsSync("dist/sitemap.xml"));
   for (const path of ["dist/worker", "dist/favicons", "dist/claude"])
     assert.equal(existsSync(path), false);
   assert.ok(
