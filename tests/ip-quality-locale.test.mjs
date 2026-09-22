@@ -23,6 +23,8 @@ test("English conclusions use structured evidence rather than matching Chinese l
   );
   const result = JSON.parse(output);
   assert.match(result.summary, /IPPure.*73/);
-  assert.match(result.reputation, /lower risk/);
+  // Reputation now composites abuse/fraud only; IPPure purity 73 alone is
+  // middling, and Coffee's trust score feeds the network indicator instead.
+  assert.match(result.reputation, /middling/);
   assert.doesNotMatch(result.reputation, /Confirm fraud/);
 });

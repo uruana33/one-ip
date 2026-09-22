@@ -1,5 +1,5 @@
-import { TrustGauge } from "@/components/trust-gauge";
 import { t } from "@/i18n";
+import { ipScoreColor, ipScoreEstimateColor } from "@/lib/ip-score";
 import { maskedIp } from "@/lib/network";
 import { ArrowUpRight, ChevronDown } from "lucide-react";
 import { TerminalEgressPanel } from "./terminal-egress-panel";
@@ -12,53 +12,165 @@ function maskTerminal(text: string, ip: string | undefined, hidden: boolean) {
 }
 
 function FormulaBody({ assessment }: { assessment: QualityAssessment }) {
-  const { reputation, anonymity, usage, cap, effectiveWeights } =
+  const { indicators, cap, penalties, evidenceCoverage, range } =
     assessment.scoreBreakdown;
+  const saturation = Math.min(1, evidenceCoverage / 0.75);
   const display = (value: number | null) =>
     value == null ? t("未返回") : String(Math.round(value));
-  const rows = [
-    {
-      label: t("信誉"),
-      value: reputation,
-      weight: effectiveWeights.reputation,
-    },
-    { label: t("匿名"), value: anonymity, weight: effectiveWeights.anonymity },
-    { label: t("用途"), value: usage, weight: effectiveWeights.usage },
-  ];
+  const coverageLevel =
+    assessment.scoreBreakdown.confidence === "high"
+      ? t("高")
+      : assessment.scoreBreakdown.confidence === "medium"
+        ? t("中")
+        : t("低");
+  const rangeText =
+    range == null
+      ? display(null)
+      : range.lo === range.hi
+        ? String(range.lo)
+        : t("{0}–{1}", [range.lo, range.hi]);
   return (
     <div className="ip-folio-formula">
-      <p className="ip-folio-formula-eq">S = round(min(Σ(w × D) / Σw, C))</p>
+      <p className="ip-folio-formula-eq">
+        S = min(60 + min(1, E/75%)·(B·P − 60), C)
+      </p>
       <dl>
-        {rows.map((row) => (
-          <div key={row.label}>
+        {indicators.map((row) => (
+          <div key={row.key}>
             <dt>
               {row.label}
               <span>
-                {row.weight
-                  ? t("×{0}%", [Math.round(row.weight * 100)])
-                  : t("未计入")}
+                {t("原始 {0}% · 有效 {1}%", [
+                  Math.round(row.weight * 100),
+                  Math.round(row.effective * 100),
+                ])}
               </span>
             </dt>
-            <dd>{display(row.value)}</dd>
+            <dd>{display(row.score)}</dd>
           </div>
         ))}
+        {penalties.map((penalty) => (
+          <div key={penalty.key} data-tone="warn">
+            <dt>{penalty.label}</dt>
+            <dd>{t("×{0}", [penalty.factor])}</dd>
+          </div>
+        ))}
+        <div>
+          <dt>{t("证据覆盖")}</dt>
+          <dd>{t("{0}%", [Math.round(evidenceCoverage * 100)])}</dd>
+        </div>
+        <div>
+          <dt>{t("覆盖饱和度")}</dt>
+          <dd>{t("{0}%", [Math.round(saturation * 100)])}</dd>
+        </div>
+        <div>
+          <dt>{t("覆盖等级")}</dt>
+          <dd>{coverageLevel}</dd>
+        </div>
         <div>
           <dt>{t("风险上限")}</dt>
           <dd>{cap}</dd>
         </div>
-        <div data-result="true">
-          <dt>{t("质量分")}</dt>
+        <div>
+          <dt>{t("中心分")}</dt>
           <dd>{display(assessment.score)}</dd>
+        </div>
+        <div data-result="true">
+          <dt>{t("质量区间")}</dt>
+          <dd>{rangeText}</dd>
         </div>
       </dl>
       <p className="ip-folio-formula-note">
         {t(
-          "按已读来源和维度加权，未知项不按无风险处理。缺少部分证据时标为估算。",
+          "七项指标按原始系数加权，缺项按已读指标重归一化为有效权重；E 为证据覆盖，实际饱和度为 min(1, E/75%)。缺失指标按悲观/乐观锚点填充得出区间上下界，证据越薄区间越宽。中心分向中性 60 收敛；区间是证据边界，不是统计置信区间。",
         )}
       </p>
       <p className="ip-folio-formula-note">
-        {t("登记日期、IPQS 与 AbuseIPDB 不计分。")}
+        {t("覆盖等级是证据覆盖等级，不是统计置信度。")}
       </p>
+      <p className="ip-folio-formula-note">
+        {t("登记日期不计分；IPQS 与 AbuseIPDB 仅在配置密钥后计入。")}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Evidence-bounded interval on the 0–100 spectrum. The fill spans what the
+ * observed sources still allow once missing indicators are bounded; a
+ * provisional score keeps the band hue but desaturated.
+ */
+function ScoreRange({ assessment }: { assessment: QualityAssessment }) {
+  const range = assessment.scoreBreakdown.range;
+  const score = assessment.score;
+  // While sources are still being read the partial-evidence range would
+  // jump as each lands — show "?" until the batch settles.
+  const waiting = assessment.pending === true;
+  const empty = range == null || score == null;
+  if (waiting || empty) {
+    const waitLabel = waiting ? t("读取中…") : t("暂无读数");
+    return (
+      <div
+        className="ip-folio-range"
+        role="img"
+        aria-label={t("质量区间 {0}，{1}", ["?", waitLabel])}
+      >
+        <div className="ip-folio-range-head">
+          <span>{t("质量区间")}</span>
+          <strong>{waitLabel}</strong>
+        </div>
+        <div className="ip-folio-range-track">
+          <span className="ip-folio-range-value ip-folio-range-unknown">?</span>
+        </div>
+        <div className="ip-folio-range-scale">
+          <span>0</span>
+          <span>100</span>
+        </div>
+      </div>
+    );
+  }
+  const color =
+    assessment.scoreStatus === "provisional"
+      ? ipScoreEstimateColor(score)
+      : ipScoreColor(score);
+  const width = Math.max(0, range.hi - range.lo);
+  const mid = Math.min(86, Math.max(14, (range.lo + range.hi) / 2));
+  const text = width === 0 ? String(score) : `${range.lo}–${range.hi}`;
+  const label = t("质量区间 {0}，中心分 {1}，{2}", [
+    text,
+    score,
+    assessment.bandLabel,
+  ]);
+  return (
+    <div className="ip-folio-range" role="img" aria-label={label} title={label}>
+      <div className="ip-folio-range-head">
+        <span>{t("质量区间")}</span>
+        <strong data-tone={assessment.band}>{text}</strong>
+        <small>
+          {t("中心分 {0}", [score])} · {assessment.bandLabel}
+        </small>
+      </div>
+      <div className="ip-folio-range-track">
+        <span
+          className="ip-folio-range-fill"
+          style={{
+            left: `${range.lo}%`,
+            width: `${Math.max(width, 3)}%`,
+            background: color,
+            color,
+          }}
+        />
+        <span
+          className="ip-folio-range-value"
+          style={{ left: `${mid}%`, color }}
+        >
+          {text}
+        </span>
+      </div>
+      <div className="ip-folio-range-scale">
+        <span>0</span>
+        <span>100</span>
+      </div>
     </div>
   );
 }
@@ -100,18 +212,7 @@ function QualityConclusion({
         ) : null}
       </div>
       <div className="ip-folio-quality-hero">
-        {assessment.score != null ? (
-          <TrustGauge
-            score={assessment.score}
-            size="lg"
-            caption={t("质量分")}
-            verdict={assessment.bandLabel}
-          />
-        ) : (
-          <div className="ip-folio-quality-wait">
-            {assessment.pending ? t("读取中…") : t("暂无读数")}
-          </div>
-        )}
+        <ScoreRange assessment={assessment} />
         <div className="ip-folio-quality-copy">
           <strong className="ip-folio-quality-kind">
             {assessment.headline}
@@ -162,10 +263,10 @@ function QualityConclusion({
             </ul>
             <p>{qualityScoreNotice(assessment)}</p>
             <p>
-              {t("有效来源：信誉 {0} · 匿名 {1} · 用途 {2}", [
-                assessment.evidence.reputation.length,
-                assessment.evidence.anonymity.length,
-                assessment.evidence.usage.length,
+              {t("有效来源：{0}", [
+                assessment.scoreBreakdown.indicators
+                  .map((item) => `${item.label} ${item.sources.length}`)
+                  .join(" · "),
               ])}
             </p>
           </div>

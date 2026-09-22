@@ -7,8 +7,6 @@ import { z } from "zod";
 import "../tests/register-paths.mjs";
 
 const { assessQuality } = await import("../src/views/ip/model/quality.ts");
-const { QUALITY_WEIGHTS } =
-  await import("../src/views/ip/model/quality-score.ts");
 
 const ip = z.string().refine((value) => isIP(value) !== 0, "Invalid IP");
 const date = z
@@ -27,6 +25,21 @@ const kinds = [
   "residential-proxy",
   "anonymous-exit",
 ];
+const usageKinds = new Set([
+  "public-service",
+  "residential",
+  "org",
+  "datacenter",
+  "mobile",
+  "isp",
+]);
+const anonymityKinds = new Set([
+  "vpn-exit",
+  "tor-exit",
+  "relay-exit",
+  "residential-proxy",
+  "anonymous-exit",
+]);
 const providers = [
   "ipinfo",
   "ip2location",
@@ -34,7 +47,24 @@ const providers = [
   "scamalytics",
   "ippure",
   "proxycheck",
+  "ipqs",
+  "abuseipdb",
+  "dnsbl",
+  "torexit",
+  "ipregistry",
 ];
+export const DEFAULT_ALIGNMENT_WINDOW_MS = 30 * 86400000;
+export const DEFAULT_SCOPE_WINDOWS_MS = {
+  usage: DEFAULT_ALIGNMENT_WINDOW_MS,
+  // Exit membership and other anonymity labels can change quickly.
+  anonymity: 24 * 60 * 60 * 1000,
+};
+const labelWindow = z
+  .number()
+  .finite()
+  .positive()
+  .max(365 * 24)
+  .optional();
 const labelsSchema = z.object({
   schemaVersion: z.literal(1),
   labels: z.array(
@@ -44,6 +74,10 @@ const labelsSchema = z.object({
       group: z.string().min(1),
       expectedKind: z.enum(kinds),
       scope: z.enum(["usage", "anonymity"]),
+      metric: z.enum(["usage", "anonymity"]).optional(),
+      alignmentWindowHours: labelWindow,
+      maxAgeHours: labelWindow,
+      validityWindowHours: labelWindow,
       confidence: z.literal("official"),
       observedAt: date,
       expiresAt: date.optional(),
@@ -81,6 +115,8 @@ const reading = z.object({
     "privacy",
     "proxy",
     "native",
+    "blocklist",
+    "abuse",
   ]),
   value: z.string(),
   hint: z.string(),
@@ -127,6 +163,73 @@ export function canonicalIp(value) {
     : value;
 }
 
+function hostAllowed(url, allowedHosts) {
+  return (
+    url.protocol === "https:" &&
+    [...allowedHosts].some(
+      (host) => url.hostname === host || url.hostname.endsWith(`.${host}`),
+    )
+  );
+}
+
+const labelSourceHosts = new Set([
+  "cloudflare.com",
+  "google.com",
+  "quad9.net",
+  "opendns.com",
+  "nextdns.io",
+  "adguard.com",
+  "cleanbrowsing.org",
+]);
+
+const readingHosts = {
+  ip2location: new Set(["ip2location.io"]),
+  ipinfo: new Set(["ipinfo.io"]),
+  ipapi: new Set(["ip-api.com"]),
+  scamalytics: new Set(["scamalytics.com"]),
+  ippure: new Set(["ippure.com", "123169.xyz"]),
+  proxycheck: new Set(["proxycheck.io"]),
+  ipqs: new Set(["ipqualityscore.com"]),
+  abuseipdb: new Set(["abuseipdb.com"]),
+  dnsbl: new Set(["mxtoolbox.com"]),
+  torexit: new Set(["torproject.org"]),
+  ipregistry: new Set(["ipregistry.co"]),
+};
+
+const coffeeAcquisitionHosts = new Set(["ip.net.coffee"]);
+const crossAcquisitionHosts = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
+function labelAlignmentWindowMs(label, options = {}) {
+  const configuredHours =
+    label.alignmentWindowHours ??
+    label.maxAgeHours ??
+    label.validityWindowHours;
+  if (configuredHours != null) return configuredHours * 60 * 60 * 1000;
+  const configured =
+    options.scopeWindows?.[label.scope] ??
+    options.windows?.[label.scope] ??
+    options.alignmentWindowMs;
+  if (configured != null) return configured;
+  return DEFAULT_SCOPE_WINDOWS_MS[label.scope] ?? DEFAULT_ALIGNMENT_WINDOW_MS;
+}
+
+export function sampleObservedAt(sample) {
+  const checkedAt = sample.cross?.checkedAt;
+  return checkedAt && Number.isFinite(Date.parse(checkedAt))
+    ? checkedAt
+    : sample.collectedAt;
+}
+
+function validateLabelScope(label) {
+  if (label.metric && label.metric !== label.scope)
+    throw new Error(`${label.id}: label metric must match scope`);
+  const allowed = label.scope === "usage" ? usageKinds : anonymityKinds;
+  if (!allowed.has(label.expectedKind))
+    throw new Error(
+      `${label.id}: ${label.scope} scope cannot label ${label.expectedKind}`,
+    );
+}
+
 export function validateCorpus(rawSamples, rawLabels) {
   const { samples } = samplesSchema.parse(rawSamples);
   const { labels } = labelsSchema.parse(rawLabels);
@@ -134,13 +237,9 @@ export function validateCorpus(rawSamples, rawLabels) {
     ["samples", samples],
     ["labels", labels],
   ]) {
-    for (const key of ["id", "ip"]) {
-      const values = rows.map((row) =>
-        key === "ip" ? canonicalIp(row.ip) : row[key],
-      );
-      if (new Set(values).size !== values.length)
-        throw new Error(`Duplicate ${name} ${key}`);
-    }
+    const values = rows.map((row) => row.id);
+    if (new Set(values).size !== values.length)
+      throw new Error(`Duplicate ${name} id`);
   }
   for (const sample of samples) {
     const readingIds = new Set();
@@ -153,7 +252,11 @@ export function validateCorpus(rawSamples, rawLabels) {
         throw new Error(`${sample.id}: Duplicate provider reading`);
       readingIds.add(id);
       metrics.add(metric);
-      if (["fraud", "risk", "purity"].includes(reading.metric)) {
+      if (
+        ["fraud", "risk", "purity", "blocklist", "abuse"].includes(
+          reading.metric,
+        )
+      ) {
         if (reputationProviders.has(reading.source))
           throw new Error(
             `${sample.id}: Multiple reputation readings from one provider`,
@@ -167,23 +270,36 @@ export function validateCorpus(rawSamples, rawLabels) {
       if (sample[key] && canonicalIp(sample[key].ip) !== canonicalIp(sample.ip))
         throw new Error(`${sample.id}: ${key} returned the wrong IP`);
     }
+    const coffeeUrl = new URL(sample.acquisition.coffee.url);
+    const crossUrl = new URL(sample.acquisition.cross.url);
+    if (
+      coffeeUrl.protocol !== "https:" ||
+      !coffeeAcquisitionHosts.has(coffeeUrl.hostname)
+    )
+      throw new Error(
+        `${sample.id}: coffee acquisition URL host is not allowlisted`,
+      );
+    if (
+      !["http:", "https:"].includes(crossUrl.protocol) ||
+      !crossAcquisitionHosts.has(crossUrl.hostname)
+    )
+      throw new Error(
+        `${sample.id}: cross acquisition URL host is not allowlisted`,
+      );
+    for (const reading of sample.cross?.readings ?? []) {
+      const href = new URL(reading.href);
+      const hosts = readingHosts[reading.source];
+      if (!hosts || !hostAllowed(href, hosts))
+        throw new Error(
+          `${sample.id}: ${reading.source} reading URL host is not allowlisted`,
+        );
+    }
   }
-  const evaluatorHosts = new Set([
-    "ip.net.coffee",
-    "ipinfo.io",
-    "ip2location.io",
-    "www.ip2location.io",
-    "ip-api.com",
-    "scamalytics.com",
-    "ippure.com",
-    "proxycheck.io",
-  ]);
   for (const label of labels) {
     const url = new URL(label.source.url);
-    if (url.protocol !== "https:" || evaluatorHosts.has(url.hostname))
-      throw new Error(
-        `${label.id}: a label needs independent HTTPS provenance`,
-      );
+    if (!hostAllowed(url, labelSourceHosts))
+      throw new Error(`${label.id}: label source URL host is not allowlisted`);
+    validateLabelScope(label);
     if (
       label.expiresAt &&
       Date.parse(label.expiresAt) <= Date.parse(label.observedAt)
@@ -212,7 +328,18 @@ function assess(sample, excluded = []) {
         ],
       }
     : null;
-  return assessQuality(coffee, cross, { now: Date.parse(sample.collectedAt) });
+  return assessQuality(coffee, cross, {
+    now: Date.parse(sampleObservedAt(sample)),
+  });
+}
+
+function scopedObservedKind(result, scope) {
+  if (scope === "anonymity") {
+    return anonymityKinds.has(result.kind) ? result.kind : null;
+  }
+  if (result.publicService) return "public-service";
+  if (usageKinds.has(result.kind)) return result.kind;
+  return null;
 }
 
 function brief(result) {
@@ -230,25 +357,36 @@ function brief(result) {
 
 function sensitivity(result) {
   if (result.scoreStatus === "unavailable") return null;
-  const { reputation: r, anonymity: a, usage: u, cap } = result.scoreBreakdown;
-  if (r == null || a == null || u == null) return null;
+  const { indicators, cap, penalties, evidenceCoverage } =
+    result.scoreBreakdown;
+  const scored = indicators.filter((item) => item.score != null);
+  if (!scored.length) return null;
+  const penalty = penalties.reduce((acc, item) => acc * item.factor, 1);
+  const saturation = Math.min(1, evidenceCoverage / 0.75);
   // Stress the weighting assumptions; these are not trained alternatives.
-  const candidates = [-0.1, -0.05, 0, 0.05, 0.1].map((delta) => {
-    const weights = {
-      ...QUALITY_WEIGHTS,
-      reputation: QUALITY_WEIGHTS.reputation + delta,
-      anonymity: QUALITY_WEIGHTS.anonymity - delta,
-    };
-    return {
-      weights,
-      score: Math.round(
-        Math.min(
-          weights.reputation * r + weights.anonymity * a + weights.usage * u,
-          cap,
-        ),
-      ),
-    };
-  });
+  const candidates = [-0.1, -0.05, 0, 0.05, 0.1]
+    .map((delta) => {
+      const weights = Object.fromEntries(
+        indicators.map((item) => [item.key, item.weight]),
+      );
+      weights.abuse = Math.max(0, weights.abuse + delta);
+      weights.fraud = Math.max(0, weights.fraud - delta);
+      let weight = 0;
+      let base = 0;
+      for (const item of scored) {
+        weight += weights[item.key];
+        base += weights[item.key] * item.score;
+      }
+      if (weight <= 0) return null;
+      const adjusted = (base / weight) * penalty;
+      const uncapped = 60 + saturation * (adjusted - 60);
+      return {
+        delta,
+        score: Math.round(Math.min(Math.max(0, Math.min(100, uncapped)), cap)),
+      };
+    })
+    .filter(Boolean);
+  if (!candidates.length) return null;
   return {
     min: Math.min(...candidates.map((x) => x.score)),
     max: Math.max(...candidates.map((x) => x.score)),
@@ -256,20 +394,33 @@ function sensitivity(result) {
   };
 }
 
-export function evaluateCorpus(rawSamples, rawLabels) {
+export function evaluateCorpus(rawSamples, rawLabels, options = {}) {
   const { samples, labels } = validateCorpus(rawSamples, rawLabels);
-  const labelMap = new Map(
-    labels.map((label) => [canonicalIp(label.ip), label]),
-  );
+  const labelsByIp = new Map();
+  for (const label of labels) {
+    const key = canonicalIp(label.ip);
+    const group = labelsByIp.get(key) ?? [];
+    group.push(label);
+    labelsByIp.set(key, group);
+  }
   const rows = samples.map((sample) => {
     const result = assess(sample);
-    const label = labelMap.get(canonicalIp(sample.ip));
-    const captured = Date.parse(sample.collectedAt);
-    // Static official service labels are only compared to observations within 30 days.
-    const aligned =
-      label &&
-      Math.abs(captured - Date.parse(label.observedAt)) <= 30 * 86400000 &&
-      (!label.expiresAt || captured <= Date.parse(label.expiresAt));
+    const captured = Date.parse(sampleObservedAt(sample));
+    const labelPool = labelsByIp.get(canonicalIp(sample.ip)) ?? [];
+    const candidates = labelPool
+      .filter(
+        (item) =>
+          Math.abs(captured - Date.parse(item.observedAt)) <=
+            labelAlignmentWindowMs(item, options) &&
+          (!item.expiresAt || captured <= Date.parse(item.expiresAt)),
+      )
+      .sort(
+        (left, right) =>
+          Math.abs(captured - Date.parse(left.observedAt)) -
+          Math.abs(captured - Date.parse(right.observedAt)),
+      );
+    const label = candidates[0] ?? labelPool[0] ?? null;
+    const labelAligned = candidates.length > 0;
     const observed = result.sources.some((source) => source.status === "ready");
     const catalogueBacked =
       !!result.publicService &&
@@ -277,7 +428,7 @@ export function evaluateCorpus(rawSamples, rawLabels) {
       label.expectedKind === "public-service";
     const labelStatus = !label
       ? "unlabelled"
-      : !aligned
+      : !labelAligned
         ? "time-mismatch"
         : !observed
           ? "unobserved"
@@ -316,14 +467,18 @@ export function evaluateCorpus(rawSamples, rawLabels) {
       id: sample.id,
       ip: sample.ip,
       collectedAt: sample.collectedAt,
+      observedAt: sampleObservedAt(sample),
       ...brief(result),
       label: label ?? null,
       labelStatus,
+      observedKind: label ? scopedObservedKind(result, label.scope) : null,
       agreement:
-        labelStatus === "compared" ? result.kind === label.expectedKind : null,
+        labelStatus === "compared"
+          ? scopedObservedKind(result, label.scope) === label.expectedKind
+          : null,
       catalogueAgreement:
         labelStatus === "catalogue-backed"
-          ? result.kind === label.expectedKind
+          ? scopedObservedKind(result, label.scope) === label.expectedKind
           : null,
       scoreBreakdown: result.scoreBreakdown,
       sensitivity: sensitivity(result),
@@ -395,7 +550,7 @@ export function renderReport(report) {
     "",
     "**这是一组用途与稳定性试验，不是准确率基准。尚不具备调参条件；本轮没有据此重新训练权重。** 公共 DNS 标签只证明服务用途，不能证明无代理、无滥用或低风险。无真实标签的目标地址不计入分类一致性。",
     "",
-    "| 地址 | 官方用途标签 | 模型类别 | 比较 | 参考分 | 证据有限 | 有效来源 R/A/U |",
+    "| 地址 | 官方用途标签 | 模型类别 | 比较 | 参考分 | 证据有限 | 各指标有效来源数 |",
     "| --- | --- | --- | --- | ---: | --- | --- |",
     ...report.rows.map(
       (row) =>
@@ -411,7 +566,7 @@ export function renderReport(report) {
     "逐一移除可用来源，并额外共同移除可能存在数据家族重叠的 IPinfo/IP2Location/Scamalytics。后者是压力场景，不断言三个服务完全同源。分数缺失不当作 0，也不隐去缺失结果。",
     "当前策略在部分来源缺失时继续按已读证据估算，并单独标明覆盖不足。分数随来源变化的幅度仍需查看，不视为质量真实改善。官方用途登记保持可追溯的服务身份，不增加信誉或匿名票。最初结果与实现指纹保存在 scripts/ip-quality-data/baseline-coverage-v1.json。",
     "",
-    "权重敏感性只在信誉与匿名权重之间转移最多 10 个百分点，保持用途权重和风险上限；得到的范围不是统计置信区间。",
+    "权重敏感性只在滥用与欺诈权重之间转移最多 10 个百分点，保持其余指标系数、罚因子和风险上限；得到的范围不是统计置信区间。",
     "",
     "| 地址 | 移除来源后的最大分差 | 用途/风险类别是否稳定 | 无可用评分的场景数 | 权重变化范围 |",
     "| --- | ---: | --- | ---: | --- |",

@@ -247,6 +247,7 @@ function EgressCockpitPanel({
           {hasScore && typeof score === "number" && (
             <TrustGauge
               score={score}
+              uncertain={assessment?.scoreStatus === "provisional"}
               hint={t(
                 "0–100，越高越好。已读取来源按同一套公式计分，不是原始分平均。",
               )}

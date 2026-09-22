@@ -16,7 +16,7 @@ const run = (sample) =>
 
 test("the requested address keeps a readable score when IPPure is unavailable", () => {
   const result = run(target);
-  assert.equal(result.score, 89);
+  assert.equal(result.score, 92);
   assert.equal(result.scoreStatus, "provisional");
   assert.equal(result.scoreReference, true);
   assert.ok(result.scoreMissingSources.includes("ippure"));
@@ -42,7 +42,7 @@ test("the requested address keeps a readable score when IPPure is unavailable", 
 
 test("unknown dimensions stay null while known reputation still yields an estimate", () => {
   const result = assessQuality({ ip: "203.0.113.80", trust_score: 80 });
-  assert.equal(result.score, 80);
+  assert.equal(result.score, 66);
   assert.equal(result.scoreBreakdown.anonymity, null);
   assert.equal(result.scoreBreakdown.usage, null);
   assert.equal(result.scoreStatus, "provisional");
@@ -98,7 +98,7 @@ test("removing a provider yields an estimate with that gap disclosed", () => {
       ),
     },
   });
-  assert.equal(reduced.score, 80);
+  assert.equal(reduced.score, 87);
   assert.equal(reduced.scoreStatus, "provisional");
   assert.ok(reduced.scoreMissingSources.includes("ip2location"));
   assert.equal(reduced.kind, "disputed");

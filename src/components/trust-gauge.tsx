@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { NumberTicker } from "@/components/number-ticker";
 import { t } from "@/i18n";
-import { ipScoreColor } from "@/lib/ip-score";
+import { ipScoreColor, ipScoreEstimateColor } from "@/lib/ip-score";
 
 /**
  * Quality score readout. The numeral is the subject; the arc is a halo.
@@ -36,8 +36,8 @@ export function TrustGauge({
   uncertain?: boolean;
 }) {
   const color =
-    uncertain && score != null && score >= 40
-      ? "var(--warning)"
+    uncertain && score != null
+      ? ipScoreEstimateColor(score)
       : ipScoreColor(score);
   const verdict =
     score == null ? t("数据不足") : (verdictOverride ?? bandLabel(score));

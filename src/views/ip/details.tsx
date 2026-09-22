@@ -66,8 +66,9 @@ export function IpDetails({
     staleTime: 60_000,
     retry: false,
   });
+  const pending = intel.isFetching && !intel.data;
   const assessment = assessQuality(d, intel.data ?? null, {
-    pending: intel.isFetching && !intel.data,
+    pending,
     terminal: terminal.reading,
     selfLookup: sameIp(browser.data?.ip, d.ip),
   });
@@ -133,7 +134,10 @@ export function IpDetails({
                 aria-label={t("复制报告")}
                 title={t("复制报告")}
                 onClick={() =>
-                  void copyText(buildReport(data, intel.data), t("报告已复制"))
+                  void copyText(
+                    buildReport(data, intel.data, { pending }),
+                    t("报告已复制"),
+                  )
                 }
               >
                 <ClipboardCopy aria-hidden="true" />

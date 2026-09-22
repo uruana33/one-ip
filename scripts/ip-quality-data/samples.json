@@ -149,6 +149,63 @@
             "hint": "",
             "tone": "warn",
             "href": "https://proxycheck.io/v3/1.1.1.1"
+          },
+          {
+            "id": "dnsbl-blocklist",
+            "source": "dnsbl",
+            "metric": "blocklist",
+            "value": "1/7",
+            "hint": "DroneBL",
+            "tone": "warn",
+            "href": "https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a1.1.1.1&run=toolpage"
+          },
+          {
+            "id": "torexit-exit",
+            "source": "torexit",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://check.torproject.org/torbulkexitlist",
+            "flags": {
+              "tor": false
+            }
+          },
+          {
+            "id": "ipregistry-privacy",
+            "source": "ipregistry",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/1.1.1.1",
+            "flags": {
+              "vpn": false,
+              "proxy": false,
+              "tor": false,
+              "relay": false,
+              "residentialProxy": false,
+              "hosting": true,
+              "anonymous": false
+            }
+          },
+          {
+            "id": "ipregistry-abuse",
+            "source": "ipregistry",
+            "metric": "abuse",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/1.1.1.1"
+          },
+          {
+            "id": "ipregistry-usage",
+            "source": "ipregistry",
+            "metric": "usage",
+            "value": "Hosting",
+            "hint": "",
+            "tone": "warn",
+            "href": "https://ipregistry.co/1.1.1.1"
           }
         ],
         "unavailable": ["ippure"],
@@ -159,7 +216,19 @@
           "end": "1.1.1.255",
           "handle": "1.1.1.0 - 1.1.1.255",
           "cidr": "1.1.1.0/24"
-        }
+        },
+        "places": [
+          {
+            "source": "ipregistry",
+            "href": "https://ipregistry.co/1.1.1.1",
+            "city": "Brisbane",
+            "region": "Queensland",
+            "country": "Australia",
+            "country_code": "AU",
+            "latitude": -27.46792,
+            "longitude": 153.02809
+          }
+        ]
       },
       "acquisition": {
         "coffee": {
@@ -320,6 +389,63 @@
             "hint": "",
             "tone": "warn",
             "href": "https://proxycheck.io/v3/1.0.0.1"
+          },
+          {
+            "id": "dnsbl-blocklist",
+            "source": "dnsbl",
+            "metric": "blocklist",
+            "value": "0/7",
+            "hint": "",
+            "tone": "good",
+            "href": "https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a1.0.0.1&run=toolpage"
+          },
+          {
+            "id": "torexit-exit",
+            "source": "torexit",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://check.torproject.org/torbulkexitlist",
+            "flags": {
+              "tor": false
+            }
+          },
+          {
+            "id": "ipregistry-privacy",
+            "source": "ipregistry",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/1.0.0.1",
+            "flags": {
+              "vpn": false,
+              "proxy": false,
+              "tor": false,
+              "relay": false,
+              "residentialProxy": false,
+              "hosting": true,
+              "anonymous": false
+            }
+          },
+          {
+            "id": "ipregistry-abuse",
+            "source": "ipregistry",
+            "metric": "abuse",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/1.0.0.1"
+          },
+          {
+            "id": "ipregistry-usage",
+            "source": "ipregistry",
+            "metric": "usage",
+            "value": "Hosting",
+            "hint": "",
+            "tone": "warn",
+            "href": "https://ipregistry.co/1.0.0.1"
           }
         ],
         "unavailable": ["ippure"],
@@ -330,7 +456,19 @@
           "end": "1.0.0.255",
           "handle": "1.0.0.0 - 1.0.0.255",
           "cidr": "1.0.0.0/24"
-        }
+        },
+        "places": [
+          {
+            "source": "ipregistry",
+            "href": "https://ipregistry.co/1.0.0.1",
+            "city": "Sydney",
+            "region": "New South Wales",
+            "country": "Australia",
+            "country_code": "AU",
+            "latitude": -33.86784,
+            "longitude": 151.2073
+          }
+        ]
       },
       "acquisition": {
         "coffee": {
@@ -491,11 +629,59 @@
             "hint": "",
             "tone": "good",
             "href": "https://proxycheck.io/v3/2606%3A4700%3A4700%3A%3A1111"
+          },
+          {
+            "id": "ipregistry-privacy",
+            "source": "ipregistry",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/2606%3A4700%3A4700%3A%3A1111",
+            "flags": {
+              "vpn": false,
+              "proxy": false,
+              "tor": false,
+              "relay": false,
+              "residentialProxy": false,
+              "hosting": true,
+              "anonymous": false
+            }
+          },
+          {
+            "id": "ipregistry-abuse",
+            "source": "ipregistry",
+            "metric": "abuse",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/2606%3A4700%3A4700%3A%3A1111"
+          },
+          {
+            "id": "ipregistry-usage",
+            "source": "ipregistry",
+            "metric": "usage",
+            "value": "Hosting",
+            "hint": "",
+            "tone": "warn",
+            "href": "https://ipregistry.co/2606%3A4700%3A4700%3A%3A1111"
           }
         ],
         "unavailable": ["ippure"],
         "checkedAt": "2026-09-18T16:54:47.410Z",
-        "prefix": null
+        "prefix": null,
+        "places": [
+          {
+            "source": "ipregistry",
+            "href": "https://ipregistry.co/2606%3A4700%3A4700%3A%3A1111",
+            "city": "San Francisco",
+            "region": "California",
+            "country": "United States",
+            "country_code": "US",
+            "latitude": 37.762,
+            "longitude": -122.3972
+          }
+        ]
       },
       "acquisition": {
         "coffee": {
@@ -656,6 +842,63 @@
             "hint": "",
             "tone": "bad",
             "href": "https://proxycheck.io/v3/8.8.8.8"
+          },
+          {
+            "id": "dnsbl-blocklist",
+            "source": "dnsbl",
+            "metric": "blocklist",
+            "value": "0/7",
+            "hint": "",
+            "tone": "good",
+            "href": "https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a8.8.8.8&run=toolpage"
+          },
+          {
+            "id": "torexit-exit",
+            "source": "torexit",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://check.torproject.org/torbulkexitlist",
+            "flags": {
+              "tor": false
+            }
+          },
+          {
+            "id": "ipregistry-privacy",
+            "source": "ipregistry",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/8.8.8.8",
+            "flags": {
+              "vpn": false,
+              "proxy": false,
+              "tor": false,
+              "relay": false,
+              "residentialProxy": false,
+              "hosting": true,
+              "anonymous": false
+            }
+          },
+          {
+            "id": "ipregistry-abuse",
+            "source": "ipregistry",
+            "metric": "abuse",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/8.8.8.8"
+          },
+          {
+            "id": "ipregistry-usage",
+            "source": "ipregistry",
+            "metric": "usage",
+            "value": "Hosting",
+            "hint": "",
+            "tone": "warn",
+            "href": "https://ipregistry.co/8.8.8.8"
           }
         ],
         "unavailable": ["ippure"],
@@ -666,7 +909,19 @@
           "end": "8.8.8.255",
           "handle": "NET-8-8-8-0-2",
           "cidr": "8.8.8.0/24"
-        }
+        },
+        "places": [
+          {
+            "source": "ipregistry",
+            "href": "https://ipregistry.co/8.8.8.8",
+            "city": "Mountain View",
+            "region": "California",
+            "country": "United States",
+            "country_code": "US",
+            "latitude": 37.40552,
+            "longitude": -122.07746
+          }
+        ]
       },
       "acquisition": {
         "coffee": {
@@ -827,6 +1082,63 @@
             "hint": "",
             "tone": "good",
             "href": "https://proxycheck.io/v3/8.8.4.4"
+          },
+          {
+            "id": "dnsbl-blocklist",
+            "source": "dnsbl",
+            "metric": "blocklist",
+            "value": "0/7",
+            "hint": "",
+            "tone": "good",
+            "href": "https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a8.8.4.4&run=toolpage"
+          },
+          {
+            "id": "torexit-exit",
+            "source": "torexit",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://check.torproject.org/torbulkexitlist",
+            "flags": {
+              "tor": false
+            }
+          },
+          {
+            "id": "ipregistry-privacy",
+            "source": "ipregistry",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/8.8.4.4",
+            "flags": {
+              "vpn": false,
+              "proxy": false,
+              "tor": false,
+              "relay": false,
+              "residentialProxy": false,
+              "hosting": true,
+              "anonymous": false
+            }
+          },
+          {
+            "id": "ipregistry-abuse",
+            "source": "ipregistry",
+            "metric": "abuse",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/8.8.4.4"
+          },
+          {
+            "id": "ipregistry-usage",
+            "source": "ipregistry",
+            "metric": "usage",
+            "value": "Hosting",
+            "hint": "",
+            "tone": "warn",
+            "href": "https://ipregistry.co/8.8.4.4"
           }
         ],
         "unavailable": ["ippure"],
@@ -837,7 +1149,19 @@
           "end": "8.8.4.255",
           "handle": "NET-8-8-4-0-2",
           "cidr": "8.8.4.0/24"
-        }
+        },
+        "places": [
+          {
+            "source": "ipregistry",
+            "href": "https://ipregistry.co/8.8.4.4",
+            "city": "Mountain View",
+            "region": "California",
+            "country": "United States",
+            "country_code": "US",
+            "latitude": 38.0088,
+            "longitude": -122.11745
+          }
+        ]
       },
       "acquisition": {
         "coffee": {
@@ -998,11 +1322,59 @@
             "hint": "",
             "tone": "good",
             "href": "https://proxycheck.io/v3/2001%3A4860%3A4860%3A%3A8888"
+          },
+          {
+            "id": "ipregistry-privacy",
+            "source": "ipregistry",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/2001%3A4860%3A4860%3A%3A8888",
+            "flags": {
+              "vpn": false,
+              "proxy": false,
+              "tor": false,
+              "relay": false,
+              "residentialProxy": false,
+              "hosting": true,
+              "anonymous": false
+            }
+          },
+          {
+            "id": "ipregistry-abuse",
+            "source": "ipregistry",
+            "metric": "abuse",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/2001%3A4860%3A4860%3A%3A8888"
+          },
+          {
+            "id": "ipregistry-usage",
+            "source": "ipregistry",
+            "metric": "usage",
+            "value": "Hosting",
+            "hint": "",
+            "tone": "warn",
+            "href": "https://ipregistry.co/2001%3A4860%3A4860%3A%3A8888"
           }
         ],
         "unavailable": ["ippure"],
         "checkedAt": "2026-09-18T16:54:52.331Z",
-        "prefix": null
+        "prefix": null,
+        "places": [
+          {
+            "source": "ipregistry",
+            "href": "https://ipregistry.co/2001%3A4860%3A4860%3A%3A8888",
+            "city": "Mountain View",
+            "region": "California",
+            "country": "United States",
+            "country_code": "US",
+            "latitude": 38.0088,
+            "longitude": -122.11745
+          }
+        ]
       },
       "acquisition": {
         "coffee": {
@@ -1163,6 +1535,61 @@
             "hint": "",
             "tone": "good",
             "href": "https://proxycheck.io/v3/9.9.9.9"
+          },
+          {
+            "id": "dnsbl-blocklist",
+            "source": "dnsbl",
+            "metric": "blocklist",
+            "value": "0/7",
+            "hint": "",
+            "tone": "good",
+            "href": "https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a9.9.9.9&run=toolpage"
+          },
+          {
+            "id": "torexit-exit",
+            "source": "torexit",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://check.torproject.org/torbulkexitlist",
+            "flags": {
+              "tor": false
+            }
+          },
+          {
+            "id": "ipregistry-privacy",
+            "source": "ipregistry",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/9.9.9.9",
+            "flags": {
+              "vpn": false,
+              "proxy": false,
+              "tor": false,
+              "relay": false,
+              "residentialProxy": false
+            }
+          },
+          {
+            "id": "ipregistry-abuse",
+            "source": "ipregistry",
+            "metric": "abuse",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/9.9.9.9"
+          },
+          {
+            "id": "ipregistry-usage",
+            "source": "ipregistry",
+            "metric": "usage",
+            "value": "Hosting",
+            "hint": "",
+            "tone": "warn",
+            "href": "https://ipregistry.co/9.9.9.9"
           }
         ],
         "unavailable": ["ippure"],
@@ -1173,7 +1600,19 @@
           "end": "9.9.9.255",
           "handle": "NET-9-9-9-0-1",
           "cidr": "9.9.9.0/24"
-        }
+        },
+        "places": [
+          {
+            "source": "ipregistry",
+            "href": "https://ipregistry.co/9.9.9.9",
+            "city": "Ashburn",
+            "region": "Virginia",
+            "country": "United States",
+            "country_code": "US",
+            "latitude": 39.0437,
+            "longitude": -77.48751
+          }
+        ]
       },
       "acquisition": {
         "coffee": {
@@ -1334,6 +1773,61 @@
             "hint": "",
             "tone": "good",
             "href": "https://proxycheck.io/v3/149.112.112.112"
+          },
+          {
+            "id": "dnsbl-blocklist",
+            "source": "dnsbl",
+            "metric": "blocklist",
+            "value": "0/7",
+            "hint": "",
+            "tone": "good",
+            "href": "https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a149.112.112.112&run=toolpage"
+          },
+          {
+            "id": "torexit-exit",
+            "source": "torexit",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://check.torproject.org/torbulkexitlist",
+            "flags": {
+              "tor": false
+            }
+          },
+          {
+            "id": "ipregistry-privacy",
+            "source": "ipregistry",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/149.112.112.112",
+            "flags": {
+              "vpn": false,
+              "proxy": false,
+              "tor": false,
+              "relay": false,
+              "residentialProxy": false
+            }
+          },
+          {
+            "id": "ipregistry-abuse",
+            "source": "ipregistry",
+            "metric": "abuse",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/149.112.112.112"
+          },
+          {
+            "id": "ipregistry-usage",
+            "source": "ipregistry",
+            "metric": "usage",
+            "value": "Hosting",
+            "hint": "",
+            "tone": "warn",
+            "href": "https://ipregistry.co/149.112.112.112"
           }
         ],
         "unavailable": ["ippure"],
@@ -1344,7 +1838,19 @@
           "end": "149.112.112.255",
           "handle": "NET-149-112-112-0-1",
           "cidr": "149.112.112.0/24"
-        }
+        },
+        "places": [
+          {
+            "source": "ipregistry",
+            "href": "https://ipregistry.co/149.112.112.112",
+            "city": "Berkeley",
+            "region": "California",
+            "country": "United States",
+            "country_code": "US",
+            "latitude": 37.87849,
+            "longitude": -122.26548
+          }
+        ]
       },
       "acquisition": {
         "coffee": {
@@ -1482,6 +1988,61 @@
             "hint": "",
             "tone": "good",
             "href": "https://proxycheck.io/v3/124.126.3.108"
+          },
+          {
+            "id": "dnsbl-blocklist",
+            "source": "dnsbl",
+            "metric": "blocklist",
+            "value": "0/7",
+            "hint": "",
+            "tone": "good",
+            "href": "https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a124.126.3.108&run=toolpage"
+          },
+          {
+            "id": "torexit-exit",
+            "source": "torexit",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://check.torproject.org/torbulkexitlist",
+            "flags": {
+              "tor": false
+            }
+          },
+          {
+            "id": "ipregistry-privacy",
+            "source": "ipregistry",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/124.126.3.108",
+            "flags": {
+              "vpn": false,
+              "proxy": false,
+              "tor": false,
+              "relay": false,
+              "residentialProxy": false
+            }
+          },
+          {
+            "id": "ipregistry-abuse",
+            "source": "ipregistry",
+            "metric": "abuse",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/124.126.3.108"
+          },
+          {
+            "id": "ipregistry-usage",
+            "source": "ipregistry",
+            "metric": "usage",
+            "value": "ISP",
+            "hint": "",
+            "tone": "neutral",
+            "href": "https://ipregistry.co/124.126.3.108"
           }
         ],
         "unavailable": ["ippure"],
@@ -1492,7 +2053,19 @@
           "end": "124.127.255.255",
           "handle": "124.126.0.0 - 124.127.255.255",
           "cidr": "124.126.0.0/15"
-        }
+        },
+        "places": [
+          {
+            "source": "ipregistry",
+            "href": "https://ipregistry.co/124.126.3.108",
+            "city": "Dongcheng",
+            "region": "Beijing Shi",
+            "country": "China",
+            "country_code": "CN",
+            "latitude": 39.90759,
+            "longitude": 116.39725
+          }
+        ]
       },
       "acquisition": {
         "coffee": {
@@ -1651,6 +2224,62 @@
             "hint": "",
             "tone": "good",
             "href": "https://proxycheck.io/v3/74.120.253.118"
+          },
+          {
+            "id": "dnsbl-blocklist",
+            "source": "dnsbl",
+            "metric": "blocklist",
+            "value": "0/7",
+            "hint": "",
+            "tone": "good",
+            "href": "https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a74.120.253.118&run=toolpage"
+          },
+          {
+            "id": "torexit-exit",
+            "source": "torexit",
+            "metric": "privacy",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://check.torproject.org/torbulkexitlist",
+            "flags": {
+              "tor": false
+            }
+          },
+          {
+            "id": "ipregistry-privacy",
+            "source": "ipregistry",
+            "metric": "privacy",
+            "value": "VPN",
+            "hint": "",
+            "tone": "warn",
+            "href": "https://ipregistry.co/74.120.253.118",
+            "flags": {
+              "vpn": true,
+              "proxy": false,
+              "tor": false,
+              "relay": false,
+              "residentialProxy": false,
+              "hosting": false
+            }
+          },
+          {
+            "id": "ipregistry-abuse",
+            "source": "ipregistry",
+            "metric": "abuse",
+            "value": "No",
+            "hint": "",
+            "tone": "good",
+            "href": "https://ipregistry.co/74.120.253.118"
+          },
+          {
+            "id": "ipregistry-usage",
+            "source": "ipregistry",
+            "metric": "usage",
+            "value": "ISP",
+            "hint": "Comcast Cable",
+            "tone": "neutral",
+            "href": "https://ipregistry.co/74.120.253.118"
           }
         ],
         "unavailable": [],
@@ -1661,7 +2290,19 @@
           "end": "74.120.255.255",
           "handle": "NET-74-120-252-0-3",
           "cidr": "74.120.252.0/22"
-        }
+        },
+        "places": [
+          {
+            "source": "ipregistry",
+            "href": "https://ipregistry.co/74.120.253.118",
+            "city": "New York",
+            "region": "New York",
+            "country": "United States",
+            "country_code": "US",
+            "latitude": 40.71277,
+            "longitude": -74.00597
+          }
+        ]
       },
       "acquisition": {
         "coffee": {

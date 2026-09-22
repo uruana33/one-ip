@@ -99,7 +99,7 @@ test("homepage uses the same disputed estimate and evidence as the IP dossier", 
     .props.cardsData[0];
   assert.equal(card.assessment.kind, "disputed");
   assert.equal(card.assessment.scoreStatus, "provisional");
-  assert.equal(card.score, 89);
+  assert.equal(card.score, 92);
   assert.ok(!card.typeLabels.some((label) => label.label === "家庭住宅 IP"));
   assert.equal(card.assessment.keyEvidence.rows.length, 3);
 });
@@ -126,7 +126,7 @@ test("refetch failures keep previous classification and cross evidence explicitl
     .props.cardsData[0];
   assert.equal(card.stale, true);
   assert.equal(card.probeStale, false);
-  assert.equal(card.score, 89);
+  assert.equal(card.score, 92);
   assert.equal(card.assessment.kind, "disputed");
 });
 test("a failed egress refresh marks only that observed route stale", () => {

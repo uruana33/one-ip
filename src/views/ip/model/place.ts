@@ -134,17 +134,19 @@ export function placeVotes(
     (intel?.places ?? []).map((row) => [row.source, row]),
   );
   const unavailable = new Set<string>(intel?.unavailable ?? []);
-  return sourceCatalog(coffee.ip).map((def) => {
-    if (def.id === "coffee") return coffeeVote(coffee, def);
-    const row = found.get(def.id);
-    if (row) return fromPlace(def, row);
-    if (!def.auto) return silentVote(def, "outbound");
-    if (pending && !intel) return silentVote(def, "pending");
-    return silentVote(
-      def,
-      unavailable.has(def.id) || intel ? "unavailable" : "pending",
-    );
-  });
+  return sourceCatalog(coffee.ip)
+    .filter((def) => def.geo !== false)
+    .map((def) => {
+      if (def.id === "coffee") return coffeeVote(coffee, def);
+      const row = found.get(def.id);
+      if (row) return fromPlace(def, row);
+      if (!def.auto) return silentVote(def, "outbound");
+      if (pending && !intel) return silentVote(def, "pending");
+      return silentVote(
+        def,
+        unavailable.has(def.id) || intel ? "unavailable" : "pending",
+      );
+    });
 }
 
 type PlaceField = "city" | "region" | "country";

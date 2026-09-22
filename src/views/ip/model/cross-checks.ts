@@ -10,13 +10,21 @@ export type CatalogSourceId =
   | "scamalytics"
   | "abuseipdb"
   | "ippure"
-  | "proxycheck";
+  | "proxycheck"
+  | "dnsbl"
+  | "torexit"
+  | "ipregistry";
 
 export interface SourceDef {
   id: CatalogSourceId;
   name: string;
-  /** Worker tries to read a public page. Outbound-only sources stay links. */
+  /**
+   * Worker tries to read the source. auto:false sources stay links unless
+   * the worker produced readings anyway (e.g. a deployer-configured API key).
+   */
   auto: boolean;
+  /** Sources without geolocation data are skipped in the place table. */
+  geo?: boolean;
   metric: string;
   why: string;
   href: string;
@@ -101,6 +109,32 @@ export function sourceCatalog(ip: string): SourceDef[] {
       metric: t("代理 / VPN / Tor"),
       why: t("proxy、VPN、Tor 分开判定；风险分 0–100 越高越危险"),
       href: `https://proxycheck.io/v3/${q}`,
+    },
+    {
+      id: "dnsbl",
+      name: "DNSBL 黑名单",
+      auto: true,
+      geo: false,
+      metric: t("滥用黑名单"),
+      why: t("30 个公开滥用名单的实时列入记录，只覆盖 IPv4"),
+      href: `https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a${q}&run=toolpage`,
+    },
+    {
+      id: "torexit",
+      name: "Tor 出口名单",
+      auto: true,
+      geo: false,
+      metric: t("官方出口名单"),
+      why: t("Tor 项目公布的当前出口地址，只覆盖 IPv4"),
+      href: "https://check.torproject.org/torbulkexitlist",
+    },
+    {
+      id: "ipregistry",
+      name: "IPregistry",
+      auto: true,
+      metric: t("安全旗标"),
+      why: t("abuser / attacker / threat 旗标与连接类型"),
+      href: `https://ipregistry.co/${q}`,
     },
   ];
 }

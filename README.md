@@ -38,6 +38,16 @@ IP 查询、网络诊断与 AI 服务状态工具箱。
 
 项目使用 **Cloudflare Workers + Static Assets**，`/api/*` 接口需要 Worker。基础功能无需应用环境变量或 API Key。
 
+IP 质量页的可选增强（不配置时对应来源保持"去原站"外链，不会报读取失败）：
+
+| 变量                 | 作用                                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| `IPQS_API_KEY`       | 配置后自动读取 IPQualityScore 欺诈分 / 匿名旗标 / 用途                                    |
+| `ABUSEIPDB_API_KEY`  | 配置后自动读取 AbuseIPDB 滥用置信度 / 举报数 / 用途                                       |
+| `IPREGISTRY_API_KEY` | 配置后用账号 key 查 IPregistry；未配置时回退站点公开 demo key（全局限流，可能偶发不可用） |
+
+在 Worker 的 Settings → Variables and Secrets 中添加（Secret 类型）即可，无需改动代码。
+
 Workers Builds 会在 `main` 收到提交时构建和部署。上方按钮指向本仓库；需要自己的部署时，请按教程导入你的 Fork。
 
 ## 功能

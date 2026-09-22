@@ -57,12 +57,12 @@ const privacySources = [
   {
     use: t("信誉与用途"),
     parties:
-      "Net.Coffee · IPinfo · IP-API · IP2Location · IPPure · proxycheck.io · Scamalytics",
+      "Net.Coffee · IPinfo · IP-API · IP2Location · IPPure · proxycheck.io · Scamalytics · DNSBL · Tor 出口名单 · IPregistry",
   },
   {
     use: t("只提供外链"),
     parties: t(
-      "IPQualityScore 与 AbuseIPDB 由你点开后在对方网站查询，本站不代查。",
+      "IPQualityScore 与 AbuseIPDB 由你点开后在对方网站查询；部署方配置 API key 后才会自动代查。",
     ),
   },
   {

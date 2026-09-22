@@ -12,14 +12,26 @@ export type CrossSource =
   | "ipapi"
   | "scamalytics"
   | "ipqs"
+  | "abuseipdb"
   | "ippure"
-  | "proxycheck";
+  | "proxycheck"
+  | "dnsbl"
+  | "torexit"
+  | "ipregistry";
 
 export interface CrossReading {
   id: string;
   source: CrossSource;
   metric:
-    "risk" | "fraud" | "purity" | "usage" | "native" | "privacy" | "proxy";
+    | "risk"
+    | "fraud"
+    | "purity"
+    | "usage"
+    | "native"
+    | "privacy"
+    | "proxy"
+    | "blocklist"
+    | "abuse";
   value: string;
   hint: string;
   tone: ScoreTone;
@@ -78,22 +90,39 @@ const SOURCE_NAME: Record<string, string> = {
   ipapi: "IP-API",
   scamalytics: "Scamalytics",
   ipqs: "IPQualityScore",
+  abuseipdb: "AbuseIPDB",
   ippure: "IPPure",
   proxycheck: "proxycheck.io",
+  dnsbl: "DNSBL 黑名单",
+  torexit: "Tor 出口名单",
+  ipregistry: "IPregistry",
 };
 
 function metricLabel(reading: CrossReading) {
   if (reading.metric === "risk")
     return reading.source === "proxycheck" ? t("风险分") : t("风控值");
-  if (reading.metric === "fraud") return t("欺诈分");
+  if (reading.metric === "fraud")
+    return reading.source === "abuseipdb" ? t("滥用置信度") : t("欺诈分");
   if (reading.metric === "purity") return t("纯净度");
   if (reading.metric === "native") return t("原生 IP");
   if (reading.metric === "privacy") return t("隐私检测");
   if (reading.metric === "proxy") return t("代理类型");
+  if (reading.metric === "blocklist") return t("滥用黑名单");
+  if (reading.metric === "abuse") return t("滥用标记");
   return t("用途类型");
 }
 
 function displayValue(reading: CrossReading) {
+  if (reading.metric === "abuse")
+    return reading.value === "Yes" ? t("已标记") : t("未标记");
+  if (reading.metric === "blocklist")
+    return Number.parseInt(reading.value, 10)
+      ? t("列入 {0}", [reading.value])
+      : t("未列入");
+  // A single-flag source fully answers its own question; it is not an
+  // incomplete anonymity check.
+  if (reading.source === "torexit" && reading.value === "No")
+    return t("未列入");
   if (
     (reading.metric === "privacy" || reading.metric === "proxy") &&
     reading.value === "No"
@@ -144,11 +173,13 @@ export function displayCrossReadings(readings: CrossReading[]): DisplayScore[] {
       hint,
       detail: `${source} · ${label}`,
       tone:
-        (reading.metric === "privacy" || reading.metric === "proxy") &&
-        reading.value === "No" &&
-        !anonymousNegative(readingAnonymity(reading))
-          ? "neutral"
-          : reading.tone,
+        reading.source === "torexit"
+          ? reading.tone
+          : (reading.metric === "privacy" || reading.metric === "proxy") &&
+              reading.value === "No" &&
+              !anonymousNegative(readingAnonymity(reading))
+            ? "neutral"
+            : reading.tone,
       kind: "cross",
     };
   });

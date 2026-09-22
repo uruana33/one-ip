@@ -72,7 +72,7 @@ test("a single-source VPN plus Coffee datacenter/residential conflict is 来源�
   assert.equal(result.band, "warn");
   assert.equal(result.bandLabel, "需核实");
   assert.equal(result.network.value, "匿名检测存在分歧");
-  assert.equal(result.reputation.value, "信誉一般");
+  assert.equal(result.reputation.value, "信誉偏低");
   assert.equal(result.score, 63);
   assert.equal(result.scoreStatus, "provisional");
   assert.match(result.summary, /IP2Location 标出 VPN/);
@@ -153,10 +153,12 @@ test("aligned usage can be classified while reputation coverage is incomplete", 
     },
   );
   assert.equal(result.kind, "residential");
-  assert.equal(result.band, "good");
+  // Four aligned sources still cover under half of the weighted source
+  // budget, so evidence saturation keeps the estimate below "good".
+  assert.equal(result.band, "warn");
   assert.equal(result.kindLabel, "住宅网络特征");
-  assert.equal(result.bandLabel, "比较好");
-  assert.equal(result.score, 91);
+  assert.equal(result.bandLabel, "需核实");
+  assert.equal(result.score, 76);
   assert.equal(result.scoreStatus, "provisional");
   assert.match(result.summary, /未检出匿名特征/);
 });
@@ -182,10 +184,14 @@ test("two provider VPN hits become a VPN exit rather than a single-source disput
   assert.equal(result.kind, "vpn-exit");
   assert.equal(result.band, "poor");
   assert.equal(result.kindLabel, "VPN 出口");
-  assert.equal(result.score, 40);
+  assert.equal(result.score, 54);
   assert.equal(result.scoreStatus, "provisional");
   assert.equal(result.scoreBreakdown.reputation, null);
-  assert.equal(result.scoreBreakdown.cap, 40);
+  assert.ok(
+    result.scoreBreakdown.penalties.some(
+      (item) => item.key === "anonymity-consensus",
+    ),
+  );
   assert.match(result.summary, /标出 VPN/);
 });
 
@@ -199,8 +205,8 @@ test("public DNS stays a public service and is not graded as a home line", () =>
   });
   assert.equal(result.kind, "public-service");
   assert.equal(result.kindLabel, "公共服务");
-  assert.equal(result.band, "poor");
-  assert.equal(result.score, 50);
+  assert.equal(result.band, "warn");
+  assert.equal(result.score, 62);
   assert.equal(result.scoreStatus, "provisional");
   assert.equal(result.scoreBreakdown.anonymity, null);
   assert.ok(result.scoreBreakdown.cap >= 70);
@@ -223,7 +229,7 @@ test("Coffee-only results stay pending and still expose outbound IPQS / AbuseIPD
   assert.equal(byId.whoer, undefined);
   assert.equal(byId.ping0, undefined);
   assert.equal(byId.spur, undefined);
-  assert.equal(result.sources.length, 9);
+  assert.equal(result.sources.length, 12);
   assert.deepEqual(
     result.sources
       .filter((item) => item.status === "outbound")
@@ -241,7 +247,7 @@ test("numeric source facts remain labelled when missing usage is excluded from a
     ],
     unavailable: [],
   });
-  assert.equal(result.score, 77);
+  assert.equal(result.score, 67);
   assert.equal(result.scoreStatus, "provisional");
   assert.equal(result.scoreBreakdown.usage, null);
   assert.ok(
@@ -337,7 +343,7 @@ test("IP-API does not corroborate a single typed VPN into high-risk when others 
   assert.equal(byId.ipapi.untypedAnonymous, true);
   assert.equal(byId.ip2location.vpn, true);
   assert.equal(result.kind, "disputed");
-  assert.equal(result.score, 59);
+  assert.equal(result.score, 61);
   assert.equal(result.scoreStatus, "provisional");
   assert.equal(result.scoreBreakdown.usage, null);
   assert.equal(result.kindLabel, "来源存在分歧");
@@ -349,7 +355,7 @@ test("IP-API does not corroborate a single typed VPN into high-risk when others 
     /Net\.Coffee、IPinfo、proxycheck\.io 在已检测项目中未检出匿名特征/,
   );
   assert.equal(result.sourcesReady, 5);
-  assert.equal(result.sourcesTotal, 9);
+  assert.equal(result.sourcesTotal, 12);
 });
 
 test("two typed VPN hits plus extreme fraud are still high-risk without counting IP-API", () => {
@@ -415,7 +421,7 @@ test("matching terminal egress does not vote and only annotates the conclusion",
     selfLookup: true,
   });
   assert.equal(result.kind, "disputed");
-  assert.equal(result.sourcesTotal, 9);
+  assert.equal(result.sourcesTotal, 12);
   assert.equal(result.runtime?.value, "同一出口");
   assert.equal(result.terminalIp, IP);
   assert.match(result.summary, /终端出口与查询地址一致/);

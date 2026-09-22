@@ -20,6 +20,12 @@ test("cross-checks open the queried IP on each site, never a domain or ASN page"
       ["abuseipdb", "https://www.abuseipdb.com/check/74.120.253.118"],
       ["ippure", "https://ippure.com/?ip=74.120.253.118"],
       ["proxycheck", "https://proxycheck.io/v3/74.120.253.118"],
+      [
+        "dnsbl",
+        "https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a74.120.253.118&run=toolpage",
+      ],
+      ["torexit", "https://check.torproject.org/torbulkexitlist"],
+      ["ipregistry", "https://ipregistry.co/74.120.253.118"],
     ],
   );
 });
@@ -37,6 +43,9 @@ test("each outbound link is named by its distinctive metric, not only the brand"
       ["abuseipdb", "滥用置信度"],
       ["ippure", "纯净度"],
       ["proxycheck", "代理 / VPN / Tor"],
+      ["dnsbl", "滥用黑名单"],
+      ["torexit", "官方出口名单"],
+      ["ipregistry", "安全旗标"],
     ],
   );
 });

@@ -78,17 +78,34 @@ async function fetchJson(url) {
     };
   }
 }
-const samples = [];
+let samples = [];
+try {
+  const previous = JSON.parse(await readFile(options.out, "utf8"));
+  if (previous?.schemaVersion === 1 && Array.isArray(previous.samples))
+    samples = previous.samples;
+} catch {
+  // A fresh output path is the normal case.
+}
+const runStartedAt = new Date().toISOString();
+const usedIds = new Set(samples.map((sample) => sample.id));
 // Sequential IPs keep the existing upstream adapters' request fan-out bounded.
-for (const ip of addresses) {
+for (const [index, ip] of addresses.entries()) {
+  const collectedAt = new Date().toISOString();
+  const baseId = `${ip.replaceAll(":", "_")}-${runStartedAt
+    .replaceAll(/[^0-9]/g, "")
+    .slice(0, 14)}-${index + 1}`;
+  let id = baseId;
+  let suffix = 2;
+  while (usedIds.has(id)) id = `${baseId}-${suffix++}`;
+  usedIds.add(id);
   const [coffee, cross] = await Promise.all([
     fetchJson(`https://ip.net.coffee/api/ip/lookup/${encodeURIComponent(ip)}`),
     fetchJson(new URL(`/api/ip/cross/${encodeURIComponent(ip)}`, base).href),
   ]);
   samples.push({
-    id: ip.replaceAll(":", "_"),
+    id,
     ip,
-    collectedAt: new Date().toISOString(),
+    collectedAt,
     coffee: coffee.data
       ? Object.fromEntries(
           fields

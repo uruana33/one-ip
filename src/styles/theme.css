@@ -27,6 +27,7 @@
   --success-text: #065f46;
   --good: #10b981;
   --warning: #f59e0b;
+  --caution: #f97316;
   --danger: #ef4444;
   --info-soft: #e0f2fe;
   --info-text: #0284c7;
@@ -55,6 +56,7 @@
   --success-text: #6ee7b7;
   --good: #34d399;
   --warning: #f59e0b;
+  --caution: #fb923c;
   --danger: #f87171;
   --info-soft: rgba(56, 189, 248, 0.16);
   --info-text: #7dd3fc;

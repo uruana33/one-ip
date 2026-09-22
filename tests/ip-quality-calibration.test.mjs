@@ -56,8 +56,16 @@ test("independent labels, unlabelled observations and acquisition failures have 
     coffee: null,
     cross: null,
     acquisition: {
-      coffee: { url: source.url, ok: false, error: "timeout" },
-      cross: { url: source.url, ok: false, error: "timeout" },
+      coffee: {
+        url: `https://ip.net.coffee/api/ip/lookup/${ip}`,
+        ok: false,
+        error: "timeout",
+      },
+      cross: {
+        url: `http://127.0.0.1:5137/api/ip/cross/${ip}`,
+        ok: false,
+        error: "timeout",
+      },
     },
   });
   const a = evaluateCorpus(samples(makeSample(), unlabelled), labels(label));
@@ -91,7 +99,7 @@ test("partial and stale label observations cannot inflate agreement", () => {
   assert.deepEqual(missing.missingLabels, [label.id]);
 });
 
-test("wrong-target snapshots, duplicate canonical IPs and self-labelled providers are rejected", () => {
+test("wrong-target snapshots, duplicate ids and self-labelled providers are rejected", () => {
   assert.throws(
     () =>
       validateCorpus(
@@ -103,16 +111,92 @@ test("wrong-target snapshots, duplicate canonical IPs and self-labelled provider
   assert.throws(
     () =>
       validateCorpus(
-        samples(makeSample(), makeSample({ id: "duplicate" })),
+        samples(makeSample(), makeSample({ id: "observed" })),
         labels(label),
       ),
-    /Duplicate samples ip/,
+    /Duplicate samples id/,
+  );
+  assert.doesNotThrow(() =>
+    validateCorpus(
+      samples(
+        makeSample({ id: "first", collectedAt: timestamp }),
+        makeSample({
+          id: "second",
+          collectedAt: "2026-09-20T00:00:00.000Z",
+          cross: {
+            ip,
+            checkedAt: "2026-09-20T00:00:00.000Z",
+            readings: [],
+            unavailable: [],
+          },
+        }),
+      ),
+      labels(label),
+    ),
   );
   const v6a = { ...label, id: "a", ip: "2606:4700:4700::1111" };
   const v6b = { ...label, id: "b", ip: "2606:4700:4700:0:0:0:0:1111" };
+  assert.doesNotThrow(() => validateCorpus(samples(), labels(v6a, v6b)));
   assert.throws(
-    () => validateCorpus(samples(), labels(v6a, v6b)),
-    /Duplicate labels ip/,
+    () =>
+      validateCorpus(
+        samples(),
+        labels({
+          ...label,
+          source: { ...source, url: "https://ipinfo.io/1.1.1.1" },
+        }),
+      ),
+    /label source URL host is not allowlisted/,
+  );
+});
+
+test("source, reading and acquisition URLs are restricted to their owning domains", () => {
+  assert.throws(
+    () =>
+      validateCorpus(
+        samples(
+          makeSample({
+            cross: {
+              ip,
+              readings: [
+                {
+                  id: "x",
+                  source: "ipinfo",
+                  metric: "privacy",
+                  value: "No",
+                  hint: "",
+                  tone: "good",
+                  href: "https://evil.example/ip",
+                },
+              ],
+              unavailable: [],
+            },
+          }),
+        ),
+        labels(label),
+      ),
+    /URL host is not allowlisted/,
+  );
+  assert.throws(
+    () =>
+      validateCorpus(
+        samples(
+          makeSample({
+            acquisition: {
+              coffee: {
+                url: "https://evil.example/lookup",
+                ok: true,
+              },
+              cross: {
+                url: `http://127.0.0.1:5137/api/ip/cross/${ip}`,
+                ok: true,
+              },
+            },
+          }),
+        ),
+        labels(label),
+      ),
+    /coffee acquisition URL host is not allowlisted/,
   );
   assert.throws(
     () =>
@@ -123,8 +207,46 @@ test("wrong-target snapshots, duplicate canonical IPs and self-labelled provider
           source: { ...source, url: "https://ipinfo.io/1.1.1.1" },
         }),
       ),
-    /independent/,
+    /label source URL host is not allowlisted/,
   );
+});
+
+test("scope matching uses the corresponding dimension and supports narrow dynamic windows", () => {
+  const wrongScope = {
+    ...label,
+    id: "bad-scope",
+    scope: "anonymity",
+  };
+  assert.throws(
+    () => validateCorpus(samples(), labels(wrongScope)),
+    /scope cannot label public-service/,
+  );
+  const dynamic = {
+    ...label,
+    id: "dynamic",
+    alignmentWindowHours: 1,
+  };
+  const sample = makeSample({
+    id: "dynamic-sample",
+    collectedAt: "2026-09-19T12:00:00.000Z",
+    cross: {
+      ip,
+      checkedAt: "2026-09-19T00:30:00.000Z",
+      readings: [],
+      unavailable: [],
+    },
+  });
+  const report = evaluateCorpus(samples(sample), labels(dynamic));
+  assert.equal(report.rows[0].labelStatus, "catalogue-backed");
+  const stale = evaluateCorpus(
+    samples({
+      ...sample,
+      id: "dynamic-stale",
+      cross: { ...sample.cross, checkedAt: "2026-09-19T02:00:00.000Z" },
+    }),
+    labels(dynamic),
+  );
+  assert.equal(stale.rows[0].labelStatus, "time-mismatch");
 });
 
 test("omitting a sole reputation source produces unknown, never an invented zero", () => {

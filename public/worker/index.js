@@ -90,7 +90,11 @@ export default {
       }
       if (path === "/ip/health") return await ipHealth(request, env);
       if (path.startsWith("/ip/cross/"))
-        return await ipCross(decodeURIComponent(path.slice(10)), url.origin);
+        return await ipCross(
+          decodeURIComponent(path.slice(10)),
+          url.origin,
+          env,
+        );
       if (path.startsWith("/ip-type/"))
         return await ipType(decodeURIComponent(path.slice(9)), url.origin);
       if (path.startsWith("/geoip/"))

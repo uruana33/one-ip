@@ -135,7 +135,8 @@ test("a lone Tor observation is kept even without other dimensions", () => {
     intel([reading("ipinfo", "privacy", "Tor", { tor: true })]),
   );
   assert.equal(result.kind, "tor-exit");
-  assert.equal(result.scoreBreakdown.anonymity, 15);
+  assert.equal(result.scoreBreakdown.anonymity, 5);
+  assert.equal(result.scoreBreakdown.cap, 25);
   assert.match(result.summary, /Tor/);
   assert.ok(result.score != null);
   assert.equal(result.scoreStatus, "provisional");
@@ -162,7 +163,9 @@ test("absent dimensions stay null rather than receiving a numerical prior", () =
   assert.equal(bare.scoreBreakdown.reputation, null);
   assert.equal(bare.scoreBreakdown.anonymity, null);
   const trustOnly = assessQuality({ ip, trust_score: 95 });
-  assert.equal(trustOnly.score, 95);
+  // One provider's trust claim is evidence-starved, so the estimate
+  // converges toward neutral instead of echoing 95.
+  assert.equal(trustOnly.score, 71);
   assert.equal(trustOnly.scoreBreakdown.anonymity, null);
   assert.equal(trustOnly.scoreBreakdown.usage, null);
   assert.equal(trustOnly.scoreStatus, "provisional");
@@ -194,7 +197,8 @@ test("missing a provider keeps the index limited even when each dimension has mu
       reading("proxycheck", "usage", "Residential"),
     ]),
   );
-  assert.ok(Object.values(result.evidence).every((ids) => ids.length >= 2));
+  assert.ok(result.evidence.fraud.length >= 2);
+  assert.ok(result.scoreMissingSources.length > 0);
   assert.ok(result.score != null);
   assert.equal(result.scoreStatus, "provisional");
   assert.equal(result.scoreReference, true);
@@ -277,4 +281,96 @@ test("increasing the same provider risk cannot improve the reference index", () 
     );
     previous = result.score;
   }
+});
+
+test("coverage falls when a source remains ready but loses its fraud reading", () => {
+  const complete = JSON.parse(
+    readFileSync(
+      new URL("../scripts/ip-quality-data/samples.json", import.meta.url),
+    ),
+  ).samples.find((sample) => sample.ip === "74.120.253.118");
+  const full = assessQuality(complete.coffee, complete.cross, {
+    now: Date.parse(complete.collectedAt),
+  });
+  const reduced = assessQuality(
+    complete.coffee,
+    {
+      ...complete.cross,
+      readings: complete.cross.readings.filter(
+        (item) => item.id !== "ip2location-fraud",
+      ),
+    },
+    { now: Date.parse(complete.collectedAt) },
+  );
+  assert.ok(full.scoreBreakdown.evidenceCoverage > reduced.scoreBreakdown.evidenceCoverage);
+  assert.equal(
+    reduced.sources.find((source) => source.id === "ip2location")?.status,
+    "ready",
+  );
+  assert.equal(reduced.scoreReference, true);
+});
+
+test("usage-only responses from several sources do not become a score", () => {
+  const result = assessQuality(
+    { ip },
+    intel([
+      reading("ip2location", "usage", "Business"),
+      reading("proxycheck", "usage", "Residential"),
+      reading("ipregistry", "usage", "ISP"),
+    ]),
+  );
+  assert.equal(result.score, null);
+  assert.equal(result.scoreStatus, "unavailable");
+  assert.equal(result.scoreBreakdown.confidence, "low");
+  assert.ok(result.scoreBreakdown.evidenceCoverage < 0.75);
+});
+
+test("same-source IPQS fraud and VPN do not self-confirm the extreme verdict", () => {
+  const result = assessQuality(
+    { ip, trust_score: 90 },
+    intel([
+      reading("ipqs", "fraud", "95"),
+      reading("ipqs", "privacy", "VPN", { vpn: true }),
+    ]),
+  );
+  assert.equal(result.scoreBreakdown.cap, 30);
+  assert.deepEqual(
+    result.scoreBreakdown.penalties.map((item) => item.key),
+    ["fraud-extreme"],
+  );
+  assert.notEqual(result.kind, "high-risk");
+});
+
+test("stale checkedAt lowers effective coverage and keeps the result provisional", () => {
+  const now = Date.parse("2026-09-23T00:00:00Z");
+  const base = {
+    ip,
+    trust_score: 90,
+    is_abuser: false,
+    is_vpn: false,
+    is_proxy: false,
+    is_tor: false,
+  };
+  const readings = [
+    reading("ipinfo", "privacy", "No", negative),
+    reading("ip2location", "fraud", "0"),
+    reading("scamalytics", "fraud", "0"),
+    reading("proxycheck", "usage", "Residential"),
+  ];
+  const fresh = assessQuality(
+    base,
+    { ...intel(readings), checkedAt: "2026-09-22T00:00:00Z" },
+    { now },
+  );
+  const stale = assessQuality(
+    base,
+    { ...intel(readings), checkedAt: "2026-01-01T00:00:00Z" },
+    { now },
+  );
+  assert.ok(
+    stale.scoreBreakdown.evidenceCoverage <
+      fresh.scoreBreakdown.evidenceCoverage,
+  );
+  assert.equal(stale.scoreBreakdown.confidence, "low");
+  assert.equal(stale.scoreReference, true);
 });
