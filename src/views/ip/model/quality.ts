@@ -1105,6 +1105,7 @@ function buildSources(
         ...silentSignals,
       };
     const gap = unavailable.has(def.id) || intel ? "unavailable" : "pending";
+    const reason = intel?.unavailableReasons?.[def.id];
     return {
       id: def.id,
       name: def.name,
@@ -1116,7 +1117,9 @@ function buildSources(
         {
           label:
             gap === "unavailable"
-              ? t("未能自动读取，去原站核对")
+              ? reason === "quota"
+                ? t("API 额度耗尽，去原站核对")
+                : t("未能自动读取，去原站核对")
               : t("正在读取…"),
           tone: gap === "unavailable" ? "warn" : "neutral",
         },

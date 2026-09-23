@@ -1996,6 +1996,7 @@
   "核心检测结果": "the core detections",
   "正在读取…": "Reading…",
   "未能自动读取，去原站核对": "Could not read automatically — verify on the source site",
+  "API 额度耗尽，去原站核对": "API quota exhausted — verify on the source site",
   "{0} 标 VPN，{1} 未检测到匿名": "{0} flags VPN; {1} does not",
   "{0} 标 VPN，{1} 标匿名出口（未分类型），{2} 未检测到匿名": "{0} flags VPN; {1} flags an untyped anonymous exit; {2} does not",
   "{0} 标匿名出口（未分类型），{1} 未检测到匿名": "{0} flags an untyped anonymous exit; {1} does not",

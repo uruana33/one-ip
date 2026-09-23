@@ -67,6 +67,8 @@ export interface CrossIntel {
   readings: CrossReading[];
   places?: CrossPlace[];
   unavailable: CrossSource[];
+  /** Why an automatic source could not be read (e.g. "quota"). */
+  unavailableReasons?: Partial<Record<CrossSource, string>>;
   prefix?: PrefixAge | null;
   /** Fetch time, not the provider database's update time. */
   checkedAt?: string;

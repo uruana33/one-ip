@@ -786,6 +786,49 @@ test("DNSBL counts listings per zone and refuses to invent a clean verdict", asy
   }
 });
 
+test("MXToolbox blacklist is used only when the account has network quota", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async (url) => {
+      const href = String(url);
+      assert.equal(href.includes("cloudflare-dns.com"), false);
+      if (href.endsWith("/Usage"))
+        return Response.json({ NetworkRequests: 0, NetworkMax: 10 });
+      assert.match(href, /\/lookup\/blacklist\/74\.120\.253\.118$/);
+      return Response.json({
+        CommandArgument: IP,
+        Failed: [{ Name: "Spamhaus ZEN" }],
+        Passed: [{ Name: "SpamCop" }, { Name: "Barracuda" }],
+        Warnings: [],
+        Timeouts: [{ Name: "SORBS" }],
+      });
+    };
+    const { items } = await checkDnsbl(IP, "mx-test-key");
+    assert.equal(items[0]?.value, "1/3");
+    assert.equal(items[0]?.tone, "warn");
+    assert.equal(items[0]?.hint, "Spamhaus ZEN");
+
+    globalThis.fetch = async (url) => {
+      const href = String(url);
+      if (href.endsWith("/Usage"))
+        return Response.json({ NetworkRequests: 0, NetworkMax: 0 });
+      if (href.includes("bl.spamcop.net"))
+        return Response.json({
+          Status: 0,
+          Answer: [{ type: 1, data: "127.0.0.2" }],
+        });
+      if (href.startsWith("https://cloudflare-dns.com/dns-query"))
+        return Response.json({ Status: 3 });
+      throw new Error(href);
+    };
+    const fallback = await checkDnsbl(IP, "mx-test-key");
+    assert.equal(fallback.items[0]?.value, "1/1");
+    assert.match(fallback.items[0]?.hint, /SpamCop/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("Tor bulk exit list only flags addresses it actually contains", async () => {
   const originalFetch = globalThis.fetch;
   try {
@@ -869,6 +912,49 @@ test("configured API keys pull IPQS and AbuseIPDB through the same payload", asy
     assert.ok(payload.places.some((item) => item.source === "ipqs"));
     assert.ok(!payload.unavailable.includes("ipqs"));
     assert.ok(!payload.unavailable.includes("abuseipdb"));
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
+test("an exhausted IPQS quota is disclosed as a quota gap, not a read error", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  globalThis.caches = undefined;
+  globalThis.fetch = async (url) => {
+    const href = String(url);
+    if (href.includes("ipqualityscore.com/api/json/ip/")) {
+      return Response.json({
+        success: false,
+        message:
+          "You have insufficient credits to make this query. Please contact IPQualityScore support if this error persists.",
+        request_id: "test",
+        api_version: 1,
+      });
+    }
+    if (href.includes("api.abuseipdb.com"))
+      return Response.json({ errors: [{ detail: "Daily limit" }] }, { status: 429 });
+    if (href.includes("api.123169.xyz"))
+      return Response.json({ ok: true, data: { risk_score: 5 } });
+    if (href.includes("cloudflare-dns.com")) return Response.json({ Status: 3 });
+    if (href.includes("check.torproject.org"))
+      return new Response("1.2.3.4\n");
+    if (href.includes("rdap.org/ip/")) return Response.json({});
+    return new Response("blocked", { status: 403 });
+  };
+  try {
+    const payload = await (
+      await ipCross(IP, "https://tools.example.com", {
+        IPQS_API_KEY: "test-ipqs-key",
+        ABUSEIPDB_API_KEY: "test-abuse-key",
+      })
+    ).json();
+    assert.ok(payload.unavailable.includes("ipqs"));
+    assert.ok(payload.unavailable.includes("abuseipdb"));
+    assert.equal(payload.unavailableReasons?.ipqs, "quota");
+    assert.equal(payload.unavailableReasons?.abuseipdb, "quota");
   } finally {
     globalThis.fetch = originalFetch;
     if (originalCaches === undefined) delete globalThis.caches;

@@ -55,11 +55,12 @@ The project uses **Cloudflare Workers with Static Assets**. The `/api/*` routes 
 
 Optional IP-quality enhancements (without these, the sources stay manual "open source" links and are never reported as failed reads):
 
-| Variable             | Effect                                                                                                                                                         |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `IPQS_API_KEY`       | Worker reads IPQualityScore fraud score / anonymity flags / usage automatically                                                                                |
-| `ABUSEIPDB_API_KEY`  | Worker reads AbuseIPDB abuse confidence / report counts / usage automatically                                                                                  |
-| `IPREGISTRY_API_KEY` | When set, IPregistry is queried with your account key; otherwise the site's shared demo key is used (globally rate-limited, may be intermittently unavailable) |
+| Variable             | Effect                                                                                                                                                                                    |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IPQS_API_KEY`       | Worker reads IPQualityScore fraud score / anonymity flags / usage automatically                                                                                                           |
+| `ABUSEIPDB_API_KEY`  | Worker reads AbuseIPDB abuse confidence / report counts / usage automatically                                                                                                             |
+| `IPREGISTRY_API_KEY` | When set, IPregistry is queried with your account key; otherwise the site's shared demo key is used (globally rate-limited, may be intermittently unavailable)                            |
+| `MXTOOLBOX_API_KEY`  | When the account has network-lookup quota, blacklist listings come from the MXToolbox API. A free plan has no network quota, so the worker keeps querying the public DNSBL zones directly |
 
 Add them under the Worker's Settings → Variables and Secrets (as Secrets); no code changes needed.
 

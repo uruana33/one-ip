@@ -31,6 +31,9 @@ const IPQS_URL = (ip, key) =>
 const ABUSEIPDB_URL = (ip) =>
   `https://api.abuseipdb.com/api/v2/check?ipAddress=${encodeURIComponent(ip)}&maxAgeInDays=90`;
 const TOR_EXIT_LIST = "https://check.torproject.org/torbulkexitlist";
+const MXTOOLBOX_USAGE = "https://api.mxtoolbox.com/api/v1/Usage";
+const MXTOOLBOX_BLACKLIST = (ip) =>
+  `https://mxtoolbox.com/api/v1/lookup/blacklist/${encodeURIComponent(ip)}`;
 const DOH_URL = "https://cloudflare-dns.com/dns-query";
 const IPREGISTRY_HOME = "https://ipregistry.co";
 // Public demo key ipregistry.co serves its own lookup page with; the
@@ -995,7 +998,69 @@ function dnsblListed(zone, query) {
   });
 }
 
-export async function checkDnsbl(ip) {
+function mxtoolboxHeaders(key) {
+  return {
+    Accept: "application/json",
+    Authorization: key,
+    "User-Agent": UA,
+  };
+}
+
+/** MXToolbox Failed rows are listings. Timeouts are unanswered, not clean. */
+export function parseMxtoolboxBlacklist(payload, ip) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload))
+    return null;
+  const argument = cleanText(payload.CommandArgument);
+  if (argument && argument !== ip) return null;
+  if (!Array.isArray(payload.Failed) || !Array.isArray(payload.Passed))
+    return null;
+  const warnings = Array.isArray(payload.Warnings) ? payload.Warnings : [];
+  const answered =
+    payload.Failed.length + payload.Passed.length + warnings.length;
+  if (!answered) return null;
+  const names = payload.Failed.map((item) => cleanText(item?.Name)).filter(
+    Boolean,
+  );
+  const listed = payload.Failed.length;
+  return {
+    items: [
+      reading(
+        "dnsbl-blocklist",
+        "dnsbl",
+        "blocklist",
+        `${listed}/${answered}`,
+        names.join(" · "),
+        listed >= 3 ? "bad" : listed >= 1 ? "warn" : "good",
+        ip,
+      ),
+    ].filter(Boolean),
+  };
+}
+
+async function mxtoolboxCanQueryBlacklist(key) {
+  const body = await fetchJson(MXTOOLBOX_USAGE, mxtoolboxHeaders(key));
+  const usage = body?.json;
+  return (
+    typeof usage?.NetworkMax === "number" &&
+    typeof usage?.NetworkRequests === "number" &&
+    usage.NetworkRequests < usage.NetworkMax
+  );
+}
+
+export async function checkDnsbl(ip, key) {
+  const token = typeof key === "string" ? key.trim() : "";
+  if (token && isIP(ip) === 4 && (await mxtoolboxCanQueryBlacklist(token))) {
+    const body = await fetchJson(
+      MXTOOLBOX_BLACKLIST(ip),
+      mxtoolboxHeaders(token),
+    );
+    const parsed = parseMxtoolboxBlacklist(body?.json, ip);
+    if (parsed) return parsed;
+  }
+  return checkDnsblZones(ip);
+}
+
+async function checkDnsblZones(ip) {
   const query = ip.split(".").reverse().join(".");
   const results = await Promise.all(
     DNSBL_ZONES.map(async ([zone, name]) => ({
@@ -1102,13 +1167,28 @@ async function fetchJson(url, headers) {
   try {
     const text = await boundedText(response, 20_000);
     try {
-      return { headers: response.headers, json: JSON.parse(text) };
+      return {
+        status: response.status,
+        headers: response.headers,
+        json: JSON.parse(text),
+      };
     } catch {
-      return { headers: response.headers, json: null };
+      return { status: response.status, headers: response.headers, json: null };
     }
   } catch {
-    return { headers: response.headers, json: null };
+    return { status: response.status, headers: response.headers, json: null };
   }
+}
+
+/** Quota/limit failures are honest "quota" gaps, not generic read errors. */
+function quotaReason(body, json) {
+  if (body?.status === 429) return "quota";
+  const message = json && typeof json.message === "string" ? json.message : "";
+  const code = json && typeof json.code === "string" ? json.code : "";
+  if (/insufficient credits|rate.?limit|quota|too many/i.test(message))
+    return "quota";
+  if (/RATE_LIMIT|QUOTA|CREDIT/i.test(code)) return "quota";
+  return undefined;
 }
 
 /**
@@ -1149,6 +1229,7 @@ async function pull(name, task) {
       name,
       items: (result?.items ?? []).filter(Boolean),
       place: result?.place ?? null,
+      reason: result?.reason,
     };
   } catch {
     return { name, items: [], place: null };
@@ -1187,7 +1268,7 @@ async function pullPrefix(ip) {
 export async function ipCross(value, origin, env) {
   const ip = publicIp(value);
   const cache = globalThis.caches?.default;
-  const keyTag = `${CACHE_VERSION}${env?.IPQS_API_KEY ? "-q" : ""}${env?.ABUSEIPDB_API_KEY ? "-a" : ""}`;
+  const keyTag = `${CACHE_VERSION}${env?.IPQS_API_KEY ? "-q" : ""}${env?.ABUSEIPDB_API_KEY ? "-a" : ""}${env?.MXTOOLBOX_API_KEY ? "-m" : ""}`;
   const key = new Request(
     `${origin}/api/ip/cross/${encodeURIComponent(ip)}?${keyTag}`,
   );
@@ -1240,7 +1321,7 @@ export async function ipCross(value, origin, env) {
       parseScamalytics(await fetchHtml(HREF.scamalytics(ip)), ip),
     ),
     pull("dnsbl", async () =>
-      isIP(ip) === 4 ? checkDnsbl(ip) : { items: [] },
+      isIP(ip) === 4 ? checkDnsbl(ip, env?.MXTOOLBOX_API_KEY) : { items: [] },
     ),
     pull("torexit", async () =>
       isIP(ip) === 4 ? checkTorExit(ip) : { items: [] },
@@ -1254,6 +1335,7 @@ export async function ipCross(value, origin, env) {
       return {
         items: parseIpregistry(body?.json, ip),
         place: placeFromIpregistry(body?.json, ip),
+        reason: quotaReason(body, body?.json),
       };
     }),
   ];
@@ -1267,6 +1349,7 @@ export async function ipCross(value, origin, env) {
         return {
           items: parseIpqs(body?.json, ip),
           place: placeFromIpqs(body?.json, ip),
+          reason: quotaReason(body, body?.json),
         };
       }),
     );
@@ -1281,7 +1364,10 @@ export async function ipCross(value, origin, env) {
           Key: env.ABUSEIPDB_API_KEY.trim(),
           "User-Agent": UA,
         });
-        return { items: parseAbuseIpdb(body?.json, ip) };
+        return {
+          items: parseAbuseIpdb(body?.json, ip),
+          reason: quotaReason(body, body?.json),
+        };
       }),
     );
 
@@ -1298,6 +1384,10 @@ export async function ipCross(value, origin, env) {
   const unavailable = jobs
     .filter((job) => !job.items.length)
     .map((job) => job.name);
+  const unavailableReasons = {};
+  for (const job of jobs)
+    if (!job.items.length && job.reason)
+      unavailableReasons[job.name] = job.reason;
 
   const result = Response.json(
     {
@@ -1306,6 +1396,7 @@ export async function ipCross(value, origin, env) {
       readings,
       places,
       unavailable,
+      unavailableReasons,
       prefix: prefix ?? null,
     },
     {
