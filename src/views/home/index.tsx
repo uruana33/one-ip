@@ -1,8 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ShareReportButton } from "@/components/share-report";
 import { ActionButton } from "@/components/toolkit";
 import { t } from "@/i18n";
 import { isHomeQueryKey, queryKeys } from "@/lib/query-keys";
+import {
+  buildHomeShareSummary,
+  flagsFromCoffee,
+  saveShareDraft,
+} from "@/lib/share-report";
 import { lookupCross, lookupIp } from "@/views/ip/api";
 import { assessQuality } from "@/views/ip/model/quality";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
@@ -36,7 +42,15 @@ export function HomePage() {
     }
   };
   useEffect(() => {
-    document.title = t("出口观测台与 IP 质量 · ip.gogoxy.com");
+    document.title = t("出口IP检测 / WebRTC / DNS / IP质量 · 出口观测台");
+    document
+      .querySelector('meta[name="description"]')
+      ?.setAttribute(
+        "content",
+        t(
+          "对照国内与海外出口是否按规则走，检查 WebRTC／DNS 泄露，查看 IP 质量分与机房／代理标记。",
+        ),
+      );
   }, []);
   const probes = useQueries({
     queries: [
@@ -174,6 +188,36 @@ export function HomePage() {
           : verdictState === "partial"
             ? t("仅取得一侧探测结果，尚不能比较出口。")
             : t("暂未获取到出口地址。");
+  const qualityIp = overseasCard?.data?.ip ?? domesticCard?.data?.ip ?? null;
+  const qualityCard = cardsData.find((card) => card.data?.ip === qualityIp);
+  const qualityGeo = qualityIp ? geoByIp.get(qualityIp)?.data : undefined;
+  const qualityCoffee = qualityIp
+    ? typeByIp.get(qualityIp)?.data?.coffee
+    : undefined;
+  const shareSummary = useMemo(
+    () =>
+      buildHomeShareSummary({
+        verdict: verdictState,
+        domesticIp: domesticCard?.data?.ip ?? null,
+        overseasIp: overseasCard?.data?.ip ?? null,
+        qualityScore: qualityCard?.score ?? null,
+        asn: qualityGeo?.asn ?? qualityCoffee?.asn ?? null,
+        isp: qualityGeo?.isp ?? qualityCoffee?.isp ?? null,
+        flags: flagsFromCoffee(qualityCoffee),
+      }),
+    [
+      verdictState,
+      domesticCard?.data?.ip,
+      overseasCard?.data?.ip,
+      qualityCard?.score,
+      qualityGeo?.asn,
+      qualityGeo?.isp,
+      qualityCoffee,
+    ],
+  );
+  useEffect(() => {
+    if (shareSummary) saveShareDraft(shareSummary);
+  }, [shareSummary]);
   const VerdictIcon =
     verdictState === "pending"
       ? LoaderCircle
@@ -223,6 +267,7 @@ export function HomePage() {
         <VerdictIcon className="home-verdict-icon" aria-hidden="true" />
         <span className="min-w-0">{verdictText}</span>
       </p>
+      {shareSummary ? <ShareReportButton summary={shareSummary} /> : null}
       <SplitTunnelVisualizer
         isSplit={cards.length > 1}
         cardsData={cardsData}

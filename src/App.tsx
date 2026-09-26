@@ -32,6 +32,9 @@ const ClaudeStatusPage = lazy(() => import("@/views/claude/status"));
 const GptStatusPage = lazy(() => import("@/views/gpt/status"));
 const PolicyPage = lazy(() => import("@/views/policy"));
 const DocsHealthPage = lazy(() => import("@/views/docs/health"));
+const DnsLeakRoute = lazy(() => import("@/views/dns-exit/leak"));
+const ShareHubPage = lazy(() => import("@/views/share"));
+const ShareReportPage = lazy(() => import("@/views/report"));
 function Redirect({ to }: { to: string }) {
   const { search, hash } = useLocation();
   const { ip } = useParams();
@@ -65,6 +68,9 @@ export function App() {
         <Route path="terms" element={<PolicyPage page="terms" />} />
         <Route path="privacy" element={<PolicyPage page="privacy" />} />
         <Route path="docs/health" element={<DocsHealthPage />} />
+        <Route path="dns" element={<DnsLeakRoute />} />
+        <Route path="share" element={<ShareHubPage />} />
+        <Route path="r/:id" element={<ShareReportPage />} />
         <Route path="network/ip">
           <Route index element={<LookupPage />} />
           <Route path=":ip" element={<LookupPage />} />

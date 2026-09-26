@@ -152,6 +152,9 @@ export function AppLayout() {
             <Link className="app-footer-link" to="/docs/health">
               API
             </Link>
+            <Link className="app-footer-link" to="/share">
+              {t("分享报告")}
+            </Link>
             <Link className="app-footer-link" to="/terms">
               {t("使用条款")}
             </Link>
