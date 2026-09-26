@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { t } from "@/i18n";
 
-const UPDATED = "2026-09-18";
+const UPDATED = "2026-09-26";
 
 const terms = [
   {
@@ -117,6 +117,12 @@ const privacy = [
     title: t("本站不会做的"),
     body: t(
       "不要求登录。不申请摄像头、麦克风或定位。WebRTC 页只建立数据通道。不为广告建立跨站档案。",
+    ),
+  },
+  {
+    title: t("分享报告"),
+    body: t(
+      "你点击生成分享链接后，本站只保存你提交的出口摘要（两侧 IP、是否一致、质量分、特征标记和可选备注），默认 30 天（可选 7 或 90 天）后自动删除。不保存完整浏览器指纹，也不静默上报真实 ISP IP。",
     ),
   },
 ];

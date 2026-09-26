@@ -53,13 +53,15 @@ export function setLocale(next: Locale) {
 
 export function initializeLocale() {
   document.documentElement.lang = locale;
-  document.title = t("出口观测台与 IP 质量 · ip.gogoxy.com");
+  const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  if (path !== "/") return;
+  document.title = t("出口IP检测 / WebRTC / DNS / IP质量 · 出口观测台");
   const description = document.querySelector('meta[name="description"]');
   if (description)
     description.setAttribute(
       "content",
       t(
-        "面向代理与分流用户：对照国内与海外出口是否按规则走，检查 WebRTC／DNS，并查看 IP 质量分与机房／代理特征标记。",
+        "对照国内与海外出口是否按规则走，检查 WebRTC／DNS 泄露，查看 IP 质量分与机房／代理标记。",
       ),
     );
 }

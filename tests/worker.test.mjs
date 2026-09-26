@@ -104,13 +104,16 @@ test("backend source paths are never served", async () => {
 test("SEO resources and document metadata bypass the SPA fallback", async () => {
   const robots = await worker.fetch(request("/robots.txt"), env);
   assert.equal(robots.headers.get("Content-Type"), "text/plain; charset=utf-8");
-  assert.match(await robots.text(), /Sitemap: https:\/\/ip\.gogoxy\.com\/sitemap\.xml/);
+  assert.match(
+    await robots.text(),
+    /Sitemap: https:\/\/ip\.gogoxy\.com\/sitemap\.xml/,
+  );
 
   const sitemap = await worker.fetch(request("/sitemap.xml"), {
     ...env,
     ASSETS: {
       fetch: async () =>
-        new Response("<?xml version=\"1.0\"?><urlset />", {
+        new Response('<?xml version="1.0"?><urlset />', {
           headers: { "Content-Type": "application/xml" },
         }),
     },
@@ -120,13 +123,94 @@ test("SEO resources and document metadata bypass the SPA fallback", async () => 
   const html = `<!doctype html><html><head><title>home</title><meta name="description" content="home"><meta property="og:title" content="home"><meta property="og:description" content="home"><meta name="twitter:title" content="home"><meta name="twitter:description" content="home"></head><body></body></html>`;
   const page = await worker.fetch(request("/network/egress"), {
     ...env,
-    ASSETS: { fetch: async () => new Response(html, { headers: { "Content-Type": "text/html" } }) },
+    ASSETS: {
+      fetch: async () =>
+        new Response(html, { headers: { "Content-Type": "text/html" } }),
+    },
   });
   const body = await page.text();
-  assert.match(body, /<title>分流出口检测 · 网站／DNS／CDN · 出口观测台<\/title>/);
-  assert.match(body, /rel="canonical" href="https:\/\/ip\.gogoxy\.com\/network\/egress"/);
-  assert.match(body, /property="og:url" content="https:\/\/ip\.gogoxy\.com\/network\/egress"/);
+  assert.match(
+    body,
+    /<title>分流出口检测 · 网站／DNS／CDN · 出口观测台<\/title>/,
+  );
+  assert.match(
+    body,
+    /rel="canonical" href="https:\/\/ip\.gogoxy\.com\/network\/egress"/,
+  );
+  assert.match(
+    body,
+    /property="og:url" content="https:\/\/ip\.gogoxy\.com\/network\/egress"/,
+  );
+  assert.match(
+    body,
+    /property="og:image" content="https:\/\/ip\.gogoxy\.com\/og\.png"/,
+  );
+  assert.match(body, /name="twitter:card" content="summary_large_image"/);
+  assert.match(
+    body,
+    /name="twitter:image" content="https:\/\/ip\.gogoxy\.com\/og\.png"/,
+  );
   assert.match(body, /application\/ld\+json/);
+
+  const home = await worker.fetch(request("/"), {
+    ...env,
+    ASSETS: {
+      fetch: async () =>
+        new Response(html, { headers: { "Content-Type": "text/html" } }),
+    },
+  });
+  const homeBody = await home.text();
+  assert.match(
+    homeBody,
+    /<title>出口IP检测 \/ WebRTC \/ DNS \/ IP质量 · 出口观测台<\/title>/,
+  );
+
+  for (const [path, title] of [
+    ["/dns", "DNS 泄露与解析出口 · 出口观测台"],
+    ["/share", "分享检测报告 · 出口观测台"],
+  ]) {
+    const page = await worker.fetch(request(path), {
+      ...env,
+      ASSETS: {
+        fetch: async () =>
+          new Response(html, { headers: { "Content-Type": "text/html" } }),
+      },
+    });
+    const text = await page.text();
+    assert.match(text, new RegExp(`<title>${title}</title>`));
+    assert.match(
+      text,
+      new RegExp(`rel="canonical" href="https://ip\\.gogoxy\\.com${path}"`),
+    );
+  }
+
+  const png = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3,
+  ]);
+  const image = await worker.fetch(request("/og.png", { method: "HEAD" }), {
+    ...env,
+    ASSETS: {
+      fetch: async () =>
+        new Response(png, { headers: { "Content-Type": "image/png" } }),
+    },
+  });
+  assert.equal(image.status, 200);
+  assert.match(image.headers.get("Content-Type"), /image\/png/);
+  assert.equal(await image.text(), "");
+
+  const spaImage = await worker.fetch(request("/og.png"), {
+    ...env,
+    ASSETS: {
+      fetch: async () =>
+        new Response(html, { headers: { "Content-Type": "text/html" } }),
+    },
+  });
+  assert.equal(spaImage.status, 404);
+  assert.equal(
+    spaImage.headers.get("Content-Type"),
+    "text/plain; charset=utf-8",
+  );
+  assert.doesNotMatch(await spaImage.text(), /<html/i);
 
   const missingAsset = await worker.fetch(request("/assets/old-chunk.js"), {
     ...env,

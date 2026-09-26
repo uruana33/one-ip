@@ -22,17 +22,24 @@ vpn: false
 proxy: false
 tor: false`;
 
+const CURL_SELF = `curl -sS "${ORIGIN}/api/ip/health" | jq '{ip,score,status,isp,flags}'`;
+const CURL_BATCH = `curl -sS "${ORIGIN}/api/ip/health?ip=8.8.8.8"`;
+const CURL_CLASH = `# 示例：读取质量分，阈值请自限
+SCORE=$(curl -sS "${ORIGIN}/api/ip/health?ip=$NODE_IP" | jq -r .score)`;
+
 const JSON_SAMPLE = `{
   "ip": "1.1.1.1",
+  "checked_at": "2026-09-26T00:57:31.406Z",
   "score": 41,
   "status": "poor",
   "country": "Australia",
+  "region": "Queensland",
   "city": "South Brisbane",
   "isp": "Cloudflare, Inc.",
   "asn": 13335,
   "flags": {
-    "datacenter": true,
     "residential": false,
+    "datacenter": true,
     "mobile": false,
     "vpn": false,
     "proxy": false,
@@ -59,7 +66,7 @@ const FIELDS: Array<{ name: string; desc: string }> = [
   {
     name: "score / status",
     desc: t(
-      "参考分（0–100）与档位（good / moderate / poor）。越高通常画像越「干净」。",
+      "参考分（0–100）与档位（good / moderate / poor）。越高通常画像越「干净」。字段名已冻结，新增字段只追加。",
     ),
   },
   {
@@ -152,6 +159,35 @@ export default function DocsHealthPage() {
               </div>
             ))}
           </dl>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">{t("一行检查当前出口")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <CodeBlock code={CURL_SELF} label={t("当前出口")} />
+          <CodeBlock code={CURL_BATCH} label={t("指定 IP（脚本批量）")} />
+          <p className="small muted">
+            {t(
+              "score／status 为参考值，不代表平台官方风控；flags.* 为机房／代理等特征标记。字段名保持兼容，只追加不改名。robots.txt 禁止索引 /api/，不影响 curl 与脚本调用。",
+            )}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">
+            {t("给 Clash／节点检测脚本")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <CodeBlock code={CURL_CLASH} label={t("读取质量分")} />
+          <p className="small muted">
+            {t("示例读取 score。阈值请自行限制，脚本使用字段名 score。")}
+          </p>
         </CardContent>
       </Card>
 

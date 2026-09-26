@@ -9,7 +9,8 @@ import { ipNetwork } from "./ip-network.js";
 import { ipType } from "./ip-type.js";
 import { mapConfig } from "./map.js";
 import { startPing, pingResult, pingNodes } from "./ping.js";
-import { handleSeo } from "./seo.js";
+import { createReport, handleReportPage, readReport } from "./report.js";
+import { handleSeo, serveOgImage } from "./seo.js";
 import { normalizeStatus } from "./service-status.js";
 import services from "./services.json";
 import { cachedStatus, STATUS_CACHE_CONTROL } from "./status-cache.js";
@@ -46,6 +47,14 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/worker" || url.pathname.startsWith("/worker/"))
       return new Response("Not found", { status: 404 });
+    if (url.pathname === "/og.png" || url.pathname === "/assets/og-default.png")
+      return serveOgImage(request, env);
+    if (url.pathname === "/r" || url.pathname.startsWith("/r/"))
+      return handleReportPage(request, env);
+    const pathname = url.pathname.replace(/\/+$/, "") || "/";
+    const publicReportGet =
+      request.method === "GET" &&
+      /^\/api\/report\/r_[0-9A-HJKMNP-TV-Z]{16}$/.test(pathname);
     if (!url.pathname.startsWith("/api/")) {
       if (env.LOCAL_DEV === "true") {
         url.hostname = "127.0.0.1";
@@ -57,7 +66,12 @@ export default {
     }
     try {
       const origin = request.headers.get("Origin");
-      if (origin && origin !== url.origin && env.LOCAL_DEV !== "true")
+      if (
+        origin &&
+        origin !== url.origin &&
+        env.LOCAL_DEV !== "true" &&
+        !publicReportGet
+      )
         throw new HttpError(403, "仅支持同源调用");
       if (!["GET", "POST"].includes(request.method))
         throw new HttpError(405, "不支持此请求方法");
@@ -69,7 +83,10 @@ export default {
       const path = url.pathname.slice(4).replace(/\/$/, "");
       if (path === "/dns" || path.startsWith("/dns/"))
         throw new HttpError(404, "接口不存在");
-      const isAction = path === "/ping/start" || path === "/webrtc/report";
+      const isAction =
+        path === "/ping/start" ||
+        path === "/webrtc/report" ||
+        path === "/report";
       if (
         (isAction && request.method !== "POST") ||
         (!isAction && request.method !== "GET")
@@ -89,6 +106,9 @@ export default {
         return json(data);
       }
       if (path === "/ip/health") return await ipHealth(request, env);
+      if (path === "/report") return await createReport(request, env, key);
+      if (path.startsWith("/report/"))
+        return await readReport(decodeURIComponent(path.slice(8)), env);
       if (path.startsWith("/ip/cross/"))
         return await ipCross(
           decodeURIComponent(path.slice(10)),
@@ -151,8 +171,11 @@ export default {
       }
       throw new HttpError(404, "接口不存在");
     } catch (error) {
+      const headers = publicReportGet
+        ? { "Access-Control-Allow-Origin": "*" }
+        : {};
       if (error instanceof HttpError)
-        return json({ error: error.message }, error.status);
+        return json({ error: error.message }, error.status, headers);
       if (error instanceof URIError)
         return json({ error: "URL 编码无效" }, 400);
       // Never log visitor IP, request URL, credentials, or upstream error bodies.

@@ -87,6 +87,8 @@ test("production assets exclude deleted content and backend source", () => {
   assert.ok(existsSync("dist/app-update-checker.worker.js"));
   assert.ok(existsSync("dist/robots.txt"));
   assert.ok(existsSync("dist/sitemap.xml"));
+  assert.ok(existsSync("dist/og.png"));
+  assert.ok(existsSync("dist/assets/og-default.png"));
   for (const path of ["dist/worker", "dist/favicons", "dist/claude"])
     assert.equal(existsSync(path), false);
   assert.ok(

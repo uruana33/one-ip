@@ -4,6 +4,7 @@ import { test } from "node:test";
 import * as jsx from "react/jsx-runtime";
 import ts from "typescript";
 import * as queryKeyModule from "../src/lib/query-keys.ts";
+import * as shareReport from "../src/lib/share-report.ts";
 import * as overview from "../src/views/home/overview.ts";
 import * as quality from "../src/views/ip/model/quality.ts";
 
@@ -29,7 +30,15 @@ function render(
     if (name === "./overview") return overview;
     if (name === "@/views/ip/model/quality") return quality;
     if (name === "react")
-      return { useEffect() {}, useState: () => [false, () => {}] };
+      return {
+        useEffect() {},
+        useState: (value) => [
+          typeof value === "function" ? value() : value,
+          () => {},
+        ],
+        useMemo: (fn) => fn(),
+      };
+    if (name === "@/lib/share-report") return shareReport;
     if (name === "@/i18n") return { t: (text) => text };
     if (name === "@/hooks/use-mobile") return { useIsMobile: () => false };
     if (name === "@/hooks/use-sort-animation")

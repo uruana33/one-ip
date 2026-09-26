@@ -1,11 +1,13 @@
-const ORIGIN = "https://ip.gogoxy.com";
+export const ORIGIN = "https://ip.gogoxy.com";
 const SITE_NAME = "出口观测台";
+const OG_IMAGE = `${ORIGIN}/og.png`;
+const OG_IMAGE_ALT = "出口观测台：国内／海外出口对照与 IP 质量";
 
 const META = {
   "/": {
-    title: "出口观测台与 IP 质量 · ip.gogoxy.com",
+    title: "出口IP检测 / WebRTC / DNS / IP质量 · 出口观测台",
     description:
-      "面向代理与分流用户：对照国内与海外出口是否按规则走，检查 WebRTC／DNS，并查看 IP 质量分与机房／代理特征标记。",
+      "对照国内与海外出口是否按规则走，检查 WebRTC／DNS 泄露，查看 IP 质量分与机房／代理标记。",
     h1: "出口有没有按规则走？",
   },
   "/network/egress": {
@@ -21,10 +23,20 @@ const META = {
     h1: "查这个出口的画像",
   },
   "/webrtc": {
-    title: "WebRTC 出口对照 · 出口观测台",
+    title: "WebRTC 泄露检测与出口对照 · 出口观测台",
     description:
-      "对照 HTTP 出口与 WebRTC／STUN 的 UDP 候选，排查代理或 TUN 下的 UDP 分流差异。只建数据通道，不申请摄像头麦克风。",
+      "对照 HTTP 出口与 WebRTC／STUN 的 UDP 候选，排查代理或 TUN 下的 UDP 分流差异。检测在浏览器本地可见，不静默上报真实 ISP IP。只建数据通道，不申请摄像头麦克风。",
     h1: "UDP 出口和网页出口一致吗？",
+  },
+  "/dns": {
+    title: "DNS 泄露与解析出口 · 出口观测台",
+    description: "查看实际生效的 DNS 解析出口，对照是否与代理规则一致。",
+    h1: "DNS 解析出口和代理规则一致吗？",
+  },
+  "/share": {
+    title: "分享检测报告 · 出口观测台",
+    description: "生成可分享的出口一致性报告链接。",
+    h1: "生成可分享的出口一致性报告",
   },
   "/ai/": {
     title: "AI 平台出口与状态 · 出口观测台",
@@ -66,7 +78,7 @@ Disallow: /cdn-cgi/
 Sitemap: ${ORIGIN}/sitemap.xml
 `;
 
-function escapeAttribute(value) {
+export function escapeAttribute(value) {
   return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll('"', "&quot;")
@@ -74,7 +86,7 @@ function escapeAttribute(value) {
     .replaceAll(">", "&gt;");
 }
 
-function escapeJson(value) {
+export function escapeJson(value) {
   return JSON.stringify(value).replaceAll("<", "\\u003c");
 }
 
@@ -94,15 +106,13 @@ function replaceMeta(html, pattern, tag) {
   return pattern.test(html) ? html.replace(pattern, tag) : html;
 }
 
-function injectHead(html, pathname) {
-  const key = pathMeta(pathname);
-  if (!key) return html;
-  const meta = META[key];
-  const canonical = routeUrl(
-    key === "/ai/" || key === "/status/" ? key : pathname,
-  );
+export function applyDocumentMeta(html, meta) {
   const title = escapeAttribute(meta.title);
+  const ogTitle = escapeAttribute(meta.ogTitle ?? meta.title);
   const description = escapeAttribute(meta.description);
+  const canonical = escapeAttribute(meta.canonical);
+  const image = escapeAttribute(meta.image ?? OG_IMAGE);
+  const imageAlt = escapeAttribute(meta.imageAlt ?? OG_IMAGE_ALT);
   let output = html;
   output = replaceMeta(
     output,
@@ -117,7 +127,7 @@ function injectHead(html, pathname) {
   output = replaceMeta(
     output,
     /<meta\s+property="og:title"\s+content="[^"]*"\s*\/?\s*>/i,
-    `<meta property="og:title" content="${title}" />`,
+    `<meta property="og:title" content="${ogTitle}" />`,
   );
   output = replaceMeta(
     output,
@@ -127,34 +137,120 @@ function injectHead(html, pathname) {
   output = replaceMeta(
     output,
     /<meta\s+name="twitter:title"\s+content="[^"]*"\s*\/?\s*>/i,
-    `<meta name="twitter:title" content="${title}" />`,
+    `<meta name="twitter:title" content="${ogTitle}" />`,
   );
   output = replaceMeta(
     output,
     /<meta\s+name="twitter:description"\s+content="[^"]*"\s*\/?\s*>/i,
     `<meta name="twitter:description" content="${description}" />`,
   );
+  output = replaceMeta(
+    output,
+    /<meta\s+name="twitter:card"\s+content="[^"]*"\s*\/?\s*>/i,
+    `<meta name="twitter:card" content="summary_large_image" />`,
+  );
+  output = replaceMeta(
+    output,
+    /<meta\s+property="og:image"\s+content="[^"]*"\s*\/?\s*>/i,
+    `<meta property="og:image" content="${image}" />`,
+  );
+  output = replaceMeta(
+    output,
+    /<meta\s+name="twitter:image"\s+content="[^"]*"\s*\/?\s*>/i,
+    `<meta name="twitter:image" content="${image}" />`,
+  );
+  output = replaceMeta(
+    output,
+    /<link\s+rel="canonical"\s+href="[^"]*"\s*\/?\s*>/i,
+    `<link rel="canonical" href="${canonical}" />`,
+  );
+  output = replaceMeta(
+    output,
+    /<meta\s+property="og:url"\s+content="[^"]*"\s*\/?\s*>/i,
+    `<meta property="og:url" content="${canonical}" />`,
+  );
+  if (meta.robots) {
+    output = replaceMeta(
+      output,
+      /<meta\s+name="robots"\s+content="[^"]*"\s*\/?\s*>/i,
+      `<meta name="robots" content="${escapeAttribute(meta.robots)}" />`,
+    );
+  }
 
-  const extra = `
-    <link rel="canonical" href="${escapeAttribute(canonical)}" />
-    <meta property="og:url" content="${escapeAttribute(canonical)}" />
-    <meta property="og:locale" content="zh_CN" />
-    <meta property="og:site_name" content="${SITE_NAME}" />
-    <script type="application/ld+json">${escapeJson({
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      name: SITE_NAME,
-      url: canonical,
-      applicationCategory: "NetworkApplication",
-      operatingSystem: "Any",
-      description: meta.description,
-      inLanguage: "zh-CN",
-    })}</script>
-    <noscript><h1>${escapeAttribute(meta.h1)}</h1><p>${description}</p></noscript>
-  `;
-  return /rel="canonical"/i.test(output)
-    ? output
-    : output.replace(/<\/head>/i, `${extra}</head>`);
+  const extra = [];
+  if (!/<title[\s>]/i.test(output)) extra.push(`<title>${title}</title>`);
+  if (!/name="description"/i.test(output))
+    extra.push(`<meta name="description" content="${description}" />`);
+  if (!/property="og:title"/i.test(output))
+    extra.push(`<meta property="og:title" content="${ogTitle}" />`);
+  if (!/property="og:description"/i.test(output))
+    extra.push(`<meta property="og:description" content="${description}" />`);
+  if (!/name="twitter:card"/i.test(output))
+    extra.push(`<meta name="twitter:card" content="summary_large_image" />`);
+  if (!/name="twitter:title"/i.test(output))
+    extra.push(`<meta name="twitter:title" content="${ogTitle}" />`);
+  if (!/name="twitter:description"/i.test(output))
+    extra.push(`<meta name="twitter:description" content="${description}" />`);
+  if (!/property="og:image"/i.test(output))
+    extra.push(`<meta property="og:image" content="${image}" />`);
+  if (!/property="og:image:width"/i.test(output)) {
+    extra.push(`<meta property="og:image:width" content="1200" />`);
+    extra.push(`<meta property="og:image:height" content="630" />`);
+    extra.push(`<meta property="og:image:alt" content="${imageAlt}" />`);
+  }
+  if (!/name="twitter:image"/i.test(output))
+    extra.push(`<meta name="twitter:image" content="${image}" />`);
+  if (!/rel="canonical"/i.test(output))
+    extra.push(`<link rel="canonical" href="${canonical}" />`);
+  if (!/property="og:url"/i.test(output))
+    extra.push(`<meta property="og:url" content="${canonical}" />`);
+  if (!/property="og:locale"/i.test(output))
+    extra.push(`<meta property="og:locale" content="zh_CN" />`);
+  if (!/property="og:site_name"/i.test(output))
+    extra.push(`<meta property="og:site_name" content="${SITE_NAME}" />`);
+  if (meta.robots && !/name="robots"/i.test(output))
+    extra.push(
+      `<meta name="robots" content="${escapeAttribute(meta.robots)}" />`,
+    );
+  if (!/application\/ld\+json/i.test(output)) {
+    extra.push(
+      `<script type="application/ld+json">${escapeJson({
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        name: SITE_NAME,
+        url: meta.canonical,
+        applicationCategory: "NetworkApplication",
+        operatingSystem: "Any",
+        description: meta.description,
+        inLanguage: "zh-CN",
+      })}</script>`,
+    );
+  }
+  const footnote = meta.footnote
+    ? `<p>${escapeAttribute(meta.footnote)}</p>`
+    : "";
+  extra.push(
+    `<noscript><h1>${escapeAttribute(meta.h1 ?? meta.title)}</h1><p>${description}</p>${footnote}</noscript>`,
+  );
+  if (!extra.length) return output;
+  return /<\/head>/i.test(output)
+    ? output.replace(/<\/head>/i, `${extra.join("\n")}</head>`)
+    : `${output}${extra.join("\n")}`;
+}
+
+function injectHead(html, pathname) {
+  const key = pathMeta(pathname);
+  if (!key) return html;
+  const meta = META[key];
+  const canonical = routeUrl(
+    key === "/ai/" || key === "/status/" ? key : pathname,
+  );
+  return applyDocumentMeta(html, {
+    title: meta.title,
+    description: meta.description,
+    canonical,
+    h1: meta.h1,
+  });
 }
 
 function textResponse(body, contentType) {
@@ -166,11 +262,63 @@ function textResponse(body, contentType) {
   });
 }
 
+function isPng(bytes) {
+  return (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  );
+}
+
+export async function serveOgImage(request, env) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return new Response("Method not allowed", {
+      status: 405,
+      headers: {
+        allow: "GET, HEAD",
+        "content-type": "text/plain; charset=utf-8",
+      },
+    });
+  }
+  const url = new URL(request.url);
+  const assetUrl = new URL(request.url);
+  assetUrl.pathname =
+    url.pathname === "/assets/og-default.png"
+      ? "/assets/og-default.png"
+      : "/og.png";
+  const asset = await env.ASSETS.fetch(
+    new Request(assetUrl, { method: "GET" }),
+  );
+  const bytes = new Uint8Array(await asset.arrayBuffer());
+  const type = asset.headers.get("content-type") ?? "";
+  if (!isPng(bytes) && !type.startsWith("image/")) {
+    return new Response("Not found", {
+      status: 404,
+      headers: {
+        "cache-control": "no-store",
+        "content-type": "text/plain; charset=utf-8",
+        "x-content-type-options": "nosniff",
+      },
+    });
+  }
+  const headers = new Headers();
+  headers.set("content-type", type.startsWith("image/") ? type : "image/png");
+  headers.set("cache-control", "public, max-age=86400");
+  headers.set("x-content-type-options", "nosniff");
+  if (request.method === "HEAD")
+    return new Response(null, { status: 200, headers });
+  return new Response(bytes, { status: 200, headers });
+}
+
 export async function handleSeo(request, env) {
   const url = new URL(request.url);
   if (url.pathname === "/robots.txt")
     return textResponse(ROBOTS, "text/plain; charset=utf-8");
   if (url.pathname === "/sitemap.xml") return env.ASSETS.fetch(request);
+  if (url.pathname === "/og.png" || url.pathname === "/assets/og-default.png")
+    return serveOgImage(request, env);
 
   if (url.pathname.startsWith("/assets/")) {
     const asset = await env.ASSETS.fetch(request);
