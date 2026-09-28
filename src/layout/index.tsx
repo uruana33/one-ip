@@ -152,6 +152,15 @@ export function AppLayout() {
             <Link className="app-footer-link" to="/docs/health">
               API
             </Link>
+            <Link className="app-footer-link" to="/docs/egress-ip">
+              {t("出口 IP 检测")}
+            </Link>
+            <Link className="app-footer-link" to="/docs/dns-leak">
+              {t("DNS 泄露")}
+            </Link>
+            <Link className="app-footer-link" to="/docs/clash">
+              {t("Clash 健康检查")}
+            </Link>
             <Link className="app-footer-link" to="/share">
               {t("分享报告")}
             </Link>

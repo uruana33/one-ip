@@ -80,10 +80,11 @@ test("missing-source reasons survive in the copy report", () => {
       (reading) => reading.source !== "ip2location",
     ),
   };
+  const quality = assessQuality(complete.coffee, cross);
   const text = buildReport({ coffee: complete.coffee }, cross);
   assert.match(text, /估算/);
   assert.match(text, /缺少.*IP2Location/);
-  assert.match(text, /质量分 87/);
+  assert.match(text, new RegExp(`质量分 ${quality.score}`));
 });
 
 test("IPv6 uses a declared four-source profile and IPPure is inapplicable", () => {

@@ -46,6 +46,21 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://ip.gogoxy.com/docs/egress-ip</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://ip.gogoxy.com/docs/dns-leak</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://ip.gogoxy.com/docs/clash</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://ip.gogoxy.com/whois</loc>
     <changefreq>monthly</changefreq>
     <priority>0.4</priority>

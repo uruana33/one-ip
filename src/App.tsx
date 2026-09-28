@@ -32,6 +32,21 @@ const ClaudeStatusPage = lazy(() => import("@/views/claude/status"));
 const GptStatusPage = lazy(() => import("@/views/gpt/status"));
 const PolicyPage = lazy(() => import("@/views/policy"));
 const DocsHealthPage = lazy(() => import("@/views/docs/health"));
+const EgressIpDoc = lazy(() =>
+  import("@/views/docs/guides").then((module) => ({
+    default: module.EgressIpDoc,
+  })),
+);
+const DnsLeakDoc = lazy(() =>
+  import("@/views/docs/guides").then((module) => ({
+    default: module.DnsLeakDoc,
+  })),
+);
+const ClashHealthDoc = lazy(() =>
+  import("@/views/docs/guides").then((module) => ({
+    default: module.ClashHealthDoc,
+  })),
+);
 const DnsLeakRoute = lazy(() => import("@/views/dns-exit/leak"));
 const ShareHubPage = lazy(() => import("@/views/share"));
 const ShareReportPage = lazy(() => import("@/views/report"));
@@ -68,6 +83,9 @@ export function App() {
         <Route path="terms" element={<PolicyPage page="terms" />} />
         <Route path="privacy" element={<PolicyPage page="privacy" />} />
         <Route path="docs/health" element={<DocsHealthPage />} />
+        <Route path="docs/egress-ip" element={<EgressIpDoc />} />
+        <Route path="docs/dns-leak" element={<DnsLeakDoc />} />
+        <Route path="docs/clash" element={<ClashHealthDoc />} />
         <Route path="dns" element={<DnsLeakRoute />} />
         <Route path="share" element={<ShareHubPage />} />
         <Route path="r/:id" element={<ShareReportPage />} />

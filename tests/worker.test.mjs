@@ -168,6 +168,9 @@ test("SEO resources and document metadata bypass the SPA fallback", async () => 
   for (const [path, title] of [
     ["/dns", "DNS 泄露与解析出口 · 出口观测台"],
     ["/share", "分享检测报告 · 出口观测台"],
+    ["/docs/egress-ip", "出口 IP 检测 · 国内／海外对照 · 出口观测台"],
+    ["/docs/dns-leak", "DNS 泄露检测 · 解析出口 · 出口观测台"],
+    ["/docs/clash", "Clash 健康检查 · 节点出口质量 · 出口观测台"],
   ]) {
     const page = await worker.fetch(request(path), {
       ...env,

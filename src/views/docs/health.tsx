@@ -4,6 +4,7 @@ import { CopyButton } from "@/components/copy-button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { t } from "@/i18n";
 import "./docs-health.css";
+import { DocsNav } from "./nav";
 
 const ORIGIN = "https://ip.gogoxy.com";
 const CURL_TEXT = `curl -sS "${ORIGIN}/api/ip/health?ip=1.1.1.1&format=text"`;
@@ -103,6 +104,7 @@ export default function DocsHealthPage() {
   }, []);
   return (
     <div className="docs-health space-y-3">
+      <DocsNav current="/docs/health" />
       <header className="page-header">
         <div className="page-header-text">
           <h1>{t("一行 curl，查看出口画像")}</h1>
@@ -186,7 +188,8 @@ export default function DocsHealthPage() {
         <CardContent className="space-y-3">
           <CodeBlock code={CURL_CLASH} label={t("读取质量分")} />
           <p className="small muted">
-            {t("示例读取 score。阈值请自行限制，脚本使用字段名 score。")}
+            {t("示例读取 score。阈值请自行限制，脚本使用字段名 score。")}{" "}
+            <Link to="/docs/clash">{t("Clash 健康检查怎么看出口")}</Link>
           </p>
         </CardContent>
       </Card>

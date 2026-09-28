@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CopyButton } from "@/components/copy-button";
-import { ReportPrivacyNote } from "@/components/share-report";
+import {
+  CopyShareTextButton,
+  ReportPrivacyNote,
+} from "@/components/share-report";
 import { IpText, Pending } from "@/components/toolkit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +15,7 @@ import {
   alignmentLabel,
   reportDocumentTitle,
   reportMarkdown,
+  reportShareText,
   type ReportFlags,
   type ShareReport,
 } from "@/lib/share-report";
@@ -61,6 +65,7 @@ export default function ShareReportPage() {
       : t("报告不存在或已过期 · 出口观测台");
   }, [report]);
   const markdown = report ? reportMarkdown(report) : "";
+  const shareText = report ? reportShareText(report) : "";
   const trueFlags = report?.summary.flags
     ? (Object.entries(report.summary.flags) as [keyof ReportFlags, boolean][])
         .filter(([, value]) => value)
@@ -154,6 +159,15 @@ export default function ShareReportPage() {
             <CardContent className="space-y-3">
               <figure className="docs-code">
                 <figcaption>
+                  <span>{t("分享文案")}</span>
+                  <CopyButton value={shareText} />
+                </figcaption>
+                <pre>
+                  <code>{shareText}</code>
+                </pre>
+              </figure>
+              <figure className="docs-code">
+                <figcaption>
                   <span>Markdown</span>
                   <CopyButton value={markdown} />
                 </figcaption>
@@ -161,7 +175,8 @@ export default function ShareReportPage() {
                   <code>{markdown}</code>
                 </pre>
               </figure>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <CopyShareTextButton value={shareText} />
                 <CopyTextButton value={report.url} label={t("复制链接")} />
                 <CopyTextButton value={markdown} label={t("复制 Markdown")} />
                 <Button variant="outline" asChild>

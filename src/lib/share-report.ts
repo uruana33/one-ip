@@ -50,6 +50,68 @@ export function alignmentLabel(value: boolean | null) {
   return t("未检测");
 }
 
+function observedPhrase(
+  value: boolean | null,
+  yes: string,
+  no: string,
+  unknown: string,
+) {
+  if (value === true) return yes;
+  if (value === false) return no;
+  return unknown;
+}
+
+/**
+ * A short note for a group chat or forum post. Chinese first, with one
+ * English line so the link still reads as an egress check if the thread is
+ * mixed-language. This is the snapshot text, not a verdict.
+ */
+export function reportShareText(report: {
+  url: string;
+  summary: ReportSummary;
+}) {
+  const summary = report.summary;
+  const egress = observedPhrase(
+    summary.egress_consistent,
+    t("国内和海外这次是同一个出口"),
+    t("国内和海外这次不是同一个出口"),
+    t("国内／海外只测到一侧，还没法比"),
+  );
+  const score =
+    summary.quality_score == null
+      ? t("质量分这次没读到")
+      : t("质量分 {0}", [
+          summary.quality_status
+            ? `${summary.quality_score}（${summary.quality_status}）`
+            : String(summary.quality_score),
+        ]);
+  const webrtc = observedPhrase(
+    summary.webrtc_match_http,
+    t("WebRTC 和网页出口一致"),
+    t("WebRTC 和网页出口不一致"),
+    t("WebRTC 这次没测"),
+  );
+  const dns = observedPhrase(
+    summary.dns_match_http,
+    t("DNS 和网页出口一致"),
+    t("DNS 和网页出口不一致"),
+    t("DNS 这次没测"),
+  );
+  return [
+    t("刚在出口观测台看了眼当前出口：{0}，{1}。{2}，{3}。", [
+      egress,
+      score,
+      webrtc,
+      dns,
+    ]),
+    t(
+      "这是出口／IP 质量检测报告链接，方便丢到群里或论坛对一下，不是平台过审证明：",
+    ),
+    report.url,
+    t("Egress / IP quality check, not a platform verdict: {0}", [report.url]),
+  ].join("\n");
+}
+
 export function reportMarkdown(report: {
   url: string;
   summary: ReportSummary;

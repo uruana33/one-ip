@@ -180,6 +180,9 @@ test("sitemap lists dns and share templates but not user reports", () => {
   const xml = readFileSync("public/sitemap.xml", "utf8");
   assert.match(xml, /https:\/\/ip\.gogoxy\.com\/dns</);
   assert.match(xml, /https:\/\/ip\.gogoxy\.com\/share</);
+  assert.match(xml, /https:\/\/ip\.gogoxy\.com\/docs\/egress-ip</);
+  assert.match(xml, /https:\/\/ip\.gogoxy\.com\/docs\/dns-leak</);
+  assert.match(xml, /https:\/\/ip\.gogoxy\.com\/docs\/clash</);
   assert.doesNotMatch(xml, /\/r\//);
 });
 

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   buildHomeShareSummary,
   reportMarkdown,
+  reportShareText,
 } from "../src/lib/share-report.ts";
 
 test("home summary and markdown stay within the public snapshot shape", () => {
@@ -33,4 +34,31 @@ test("home summary and markdown stay within the public snapshot shape", () => {
   assert.match(markdown, /WebRTC vs HTTP：未检测/);
   assert.match(markdown, /质量分：52（moderate）/);
   assert.match(markdown, /https:\/\/ip\.gogoxy\.com\/r\/r_0123456789ABCDEF/);
+});
+
+test("share text is a chat note plus the report link", () => {
+  const url = "https://ip.gogoxy.com/r/r_0123456789ABCDEF";
+  const text = reportShareText({
+    url,
+    summary: {
+      domestic_ip: "1.1.1.1",
+      overseas_ip: "8.8.8.8",
+      egress_consistent: false,
+      webrtc_match_http: null,
+      dns_match_http: true,
+      quality_score: 52,
+      quality_status: "moderate",
+      asn: 13335,
+      isp: "Example",
+    },
+  });
+  assert.match(text, /国内和海外这次不是同一个出口/);
+  assert.match(text, /质量分 52（moderate）/);
+  assert.match(text, /WebRTC 这次没测/);
+  assert.match(text, /DNS 和网页出口一致/);
+  assert.match(text, /出口／IP 质量检测报告链接/);
+  assert.match(text, /不是平台过审证明/);
+  assert.match(text, new RegExp(url.replaceAll(".", "\\.")));
+  assert.match(text, /Egress \/ IP quality check, not a platform verdict:/);
+  assert.equal(text.split(url).length, 3);
 });
