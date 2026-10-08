@@ -6,27 +6,44 @@ test("IP classification validates results, caches exact IPs and suppresses unava
   const originalFetch = globalThis.fetch;
   const originalCaches = globalThis.caches;
   const saved = new Map();
-  globalThis.caches = { default: {
-    match: async (key) => saved.get(key.url)?.clone(),
-    put: async (key, response) => saved.set(key.url, response),
-  } };
+  globalThis.caches = {
+    default: {
+      match: async (key) => saved.get(key.url)?.clone(),
+      put: async (key, response) => saved.set(key.url, response),
+    },
+  };
   try {
-    await assert.rejects(() => ipType("127.0.0.1", "https://tools.example.com"));
+    await assert.rejects(() =>
+      ipType("127.0.0.1", "https://tools.example.com"),
+    );
     for (const flags of [
       { hosting: true, mobile: false, proxy: true },
       { hosting: false, mobile: true, proxy: false },
       { hosting: false, mobile: false, proxy: false },
     ]) {
       saved.clear();
+      globalThis.__oneIpCache?.type?.clear();
       globalThis.fetch = async (url) => {
-        assert.equal(url, "http://ip-api.com/json/8.8.8.8?fields=status,query,hosting,mobile,proxy");
+        assert.equal(
+          url,
+          "http://ip-api.com/json/8.8.8.8?fields=status,query,hosting,mobile,proxy",
+        );
         return Response.json({ status: "success", query: "8.8.8.8", ...flags });
       };
-      assert.deepEqual(await (await ipType("8.8.8.8", "https://tools.example.com")).json(), { available: true, ...flags });
-      globalThis.fetch = async () => { throw new Error("cache miss"); };
-      assert.deepEqual(await (await ipType("8.8.8.8", "https://tools.example.com")).json(), { available: true, ...flags });
+      assert.deepEqual(
+        await (await ipType("8.8.8.8", "https://tools.example.com")).json(),
+        { available: true, ...flags },
+      );
+      globalThis.fetch = async () => {
+        throw new Error("cache miss");
+      };
+      assert.deepEqual(
+        await (await ipType("8.8.8.8", "https://tools.example.com")).json(),
+        { available: true, ...flags },
+      );
     }
     saved.clear();
+    globalThis.__oneIpCache?.type?.clear();
     for (const response of [
       Response.json({ status: "success", query: "8.8.8.9", hosting: true }),
       Response.json({ status: "success", query: "8.8.8.8" }),
@@ -39,12 +56,23 @@ test("IP classification validates results, caches exact IPs and suppresses unava
       assert.equal(result.headers.get("Cache-Control"), "no-store");
       assert.equal(saved.size, 0);
     }
-    globalThis.fetch = async () => { throw new TypeError("timeout"); };
-    assert.deepEqual(await (await ipType("8.8.8.8", "https://tools.example.com")).json(), { available: false });
+    globalThis.fetch = async () => {
+      throw new TypeError("timeout");
+    };
+    assert.deepEqual(
+      await (await ipType("8.8.8.8", "https://tools.example.com")).json(),
+      { available: false },
+    );
     let calls = 0;
-    globalThis.fetch = async () => { calls++; return new Response(null, { status: 429, headers: { "X-Ttl": "60" } }); };
+    globalThis.fetch = async () => {
+      calls++;
+      return new Response(null, { status: 429, headers: { "X-Ttl": "60" } });
+    };
     await ipType("8.8.8.8", "https://tools.example.com");
-    assert.deepEqual(await (await ipType("1.1.1.1", "https://tools.example.com")).json(), { available: false });
+    assert.deepEqual(
+      await (await ipType("1.1.1.1", "https://tools.example.com")).json(),
+      { available: false },
+    );
     assert.equal(calls, 1);
   } finally {
     globalThis.fetch = originalFetch;
