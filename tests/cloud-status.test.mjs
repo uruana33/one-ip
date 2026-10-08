@@ -128,14 +128,14 @@ test("provider failures never report healthy", async (t) => {
   await assert.rejects(
     getCloudStatus(services.find((s) => s.id === "bandwagonhost")),
   );
-  for (const id of ["aliyun", "tencent-cloud", "azure"])
-    assert.equal(
-      (
-        await worker.fetch(
-          new Request(`https://example.com/api/status/${id}`),
-          {},
-        )
-      ).status,
-      502,
+  for (const id of ["aliyun", "tencent-cloud", "azure"]) {
+    const response = await worker.fetch(
+      new Request(`https://example.com/api/status/${id}`),
+      {},
     );
+    assert.equal(response.status, 200, id);
+    const body = await response.json();
+    assert.equal(body.status.indicator, "unknown", id);
+    assert.notEqual(body.status.indicator, "none", id);
+  }
 });

@@ -1,4 +1,5 @@
 import { HttpError, upstream } from "./http.js";
+import { statusFetch, withStatusSignal } from "./status-cache.js";
 
 const unavailable = () => new HttpError(502, "官方状态数据暂不可用");
 const summary = (indicator, description, incidents) => ({
@@ -316,11 +317,12 @@ function withTencentDetailLimit(task) {
   });
 }
 
-async function tencentStatus(url) {
+async function tencentStatus(url, signal) {
   const [regionData, bannerData] = await Promise.all([
-    upstream(url),
+    upstream(url, withStatusSignal(signal)),
     upstream(
       "https://status.tencentcloud.com/v1/api/status/DescribeHappening?BelongSite=1",
+      withStatusSignal(signal),
     ),
   ]);
   const regions = tencentRegions(regionData);
@@ -338,6 +340,7 @@ async function tencentStatus(url) {
         return parseTencentProducts(
           await upstream(
             `https://status.tencentcloud.com/v1/api/status/DescribeProductEventForRegionInPeriod?${query}`,
+            withStatusSignal(signal),
           ),
           region,
         );
@@ -418,9 +421,9 @@ export function parseAzure(html) {
 }
 
 // AWS serves UTF-16 JSON; BandwagonHost currently exposes a small HTML summary.
-async function sourceText(url, maxBytes = 2_000_000) {
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(10_000),
+async function sourceText(url, maxBytes = 2_000_000, signal) {
+  const response = await statusFetch(url, {
+    signal,
     redirect: "manual",
   });
   if (!response.ok) {
@@ -507,26 +510,33 @@ export function parseQwenStatus(catalog, current) {
   };
 }
 
-export async function getCloudStatus(service) {
+export async function getCloudStatus(service, signal) {
   if (service.id === "34") {
     const [catalog, current] = await Promise.all([
       upstream(
         "https://status.aliyun.com/api/status/listProductForAllTypeInRegion?regionId=non-regional",
+        withStatusSignal(signal),
       ),
-      upstream(service.url),
+      upstream(service.url, withStatusSignal(signal)),
     ]);
     return parseQwenStatus(catalog, current);
   }
-  if (service.id === "aliyun") return parseAliyun(await upstream(service.url));
-  if (service.id === "tencent-cloud") return tencentStatus(service.url);
+  if (service.id === "aliyun")
+    return parseAliyun(await upstream(service.url, withStatusSignal(signal)));
+  if (service.id === "tencent-cloud") return tencentStatus(service.url, signal);
   if (service.id === "azure")
-    return parseAzure(await sourceText(service.url, 8_000_000));
-  if (service.id === "dmit") return parseDmit(await upstream(service.url));
+    return parseAzure(await sourceText(service.url, 8_000_000, signal));
+  if (service.id === "dmit")
+    return parseDmit(await upstream(service.url, withStatusSignal(signal)));
   if (service.id === "bandwagonhost")
-    return parseBandwagon(await sourceText(service.url));
+    return parseBandwagon(await sourceText(service.url, 2_000_000, signal));
   if (service.id === "google-cloud")
-    return parseGoogleCloud(await upstream(service.url));
+    return parseGoogleCloud(
+      await upstream(service.url, withStatusSignal(signal)),
+    );
   if (service.id === "aws")
-    return parseAws(JSON.parse(await sourceText(service.url)));
-  return upstream(service.url);
+    return parseAws(
+      JSON.parse(await sourceText(service.url, 2_000_000, signal)),
+    );
+  return upstream(service.url, withStatusSignal(signal));
 }

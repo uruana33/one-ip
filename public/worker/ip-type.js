@@ -1,15 +1,14 @@
+import { edgeMemory, remember, rememberEdge } from "./edge-memory.js";
 import { boundedJson, json, publicIp } from "./http.js";
 
 let retryAfter = 0;
 
 export async function ipType(value, origin) {
   const ip = publicIp(value);
-  const cache = globalThis.caches?.default;
-  const key = new Request(
-    `${origin}/api/ip-type/${encodeURIComponent(ip)}?v=2`,
-  );
-  const cached = await cache?.match(key).catch(() => undefined);
-  if (cached) return cached;
+  const cacheKey = `${origin}\0${ip}`;
+  const memory = rememberEdge() ? edgeMemory().type : null;
+  const hit = memory?.get(cacheKey);
+  if (hit && hit.expires > Date.now()) return hit.response.clone();
   if (Date.now() < retryAfter) return json({ available: false });
   try {
     const response = await fetch(
@@ -48,7 +47,13 @@ export async function ipType(value, origin) {
         },
       },
     );
-    await cache?.put(key, result.clone()).catch(() => {});
+    if (memory)
+      remember(
+        memory,
+        cacheKey,
+        { expires: Date.now() + 3_600_000, response: result.clone() },
+        100,
+      );
     return result;
   } catch {
     return json({ available: false });

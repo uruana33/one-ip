@@ -1,16 +1,20 @@
 import { boundedJson, HttpError, upstream } from "./http.js";
+import { statusFetch, withStatusSignal } from "./status-cache.js";
 import { parseTelegramStatus } from "./telegram-status.js";
 
 const unavailable = () => new HttpError(502, "官方状态数据暂不可用");
 
-async function pageText(url) {
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(10_000),
+async function pageText(url, signal) {
+  const response = await statusFetch(url, {
+    signal,
     headers: {
       "User-Agent": "IP-Tools/1.0",
     },
   });
-  if (!response.ok) throw unavailable();
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw unavailable();
+  }
   return response.text();
 }
 
@@ -136,43 +140,51 @@ export function parseGemini(data) {
   };
 }
 
-export async function getAiStatus(service) {
+export async function getAiStatus(service, signal) {
   if (Array.isArray(service.probe) && service.probe.length)
-    return probeService(service);
+    return probeService(service, signal);
   if (service.id === "telegram")
     return parseTelegramStatus(
-      await upstream(service.url, {
-        cf: { cacheTtl: 60, cacheEverything: true },
-      }),
+      await upstream(
+        service.url,
+        withStatusSignal(signal, {
+          cf: { cacheTtl: 60, cacheEverything: true },
+        }),
+      ),
     );
-  if (service.id === "33") return parseGrokFeed(await pageText(service.url));
+  if (service.id === "33")
+    return parseGrokFeed(await pageText(service.url, signal));
   if (service.id === "11") {
     return parseReplicate(
-      await upstream(service.url, {
-        headers: {
-          "User-Agent": "IP-Tools/1.0",
-        },
-      }),
+      await upstream(
+        service.url,
+        withStatusSignal(signal, {
+          headers: {
+            "User-Agent": "IP-Tools/1.0",
+          },
+        }),
+      ),
     );
   }
   if (service.id === "32") {
     // Prefer the official RSS when reachable. A fallback probe is transport
     // evidence only, so it must never be rendered as official health.
     try {
-      return parseDeepSeek(await pageText(service.url));
+      return parseDeepSeek(await pageText(service.url, signal));
     } catch {
-      return getDeepSeekStatus({ rssUnavailable: true });
+      return getDeepSeekStatus({ rssUnavailable: true }, signal);
     }
   }
   if (service.id === "31") {
-    const html = await pageText(service.page);
+    const html = await pageText(service.page, signal);
     // Public application identifiers shipped by AI Studio, not visitor credentials.
     const keys = [...new Set(html.match(/AIza[\w-]+/g) ?? [])];
     for (const key of keys) {
+      const timeout = AbortSignal.timeout(10_000);
       const response = await fetch(service.url, {
         method: "POST",
         body: "[]",
-        signal: AbortSignal.timeout(10_000),
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
         headers: {
           "Content-Type": "application/json+protobuf",
           "X-Goog-Api-Key": key,
@@ -187,7 +199,7 @@ export async function getAiStatus(service) {
     }
     throw unavailable();
   }
-  return upstream(service.url);
+  return upstream(service.url, withStatusSignal(signal));
 }
 
 async function probeReachability(
@@ -195,11 +207,12 @@ async function probeReachability(
   okDescription,
   failDescription,
   { rssUnavailable = false, allowNoResponse = false } = {},
+  signal,
 ) {
   const results = await Promise.allSettled(
     targets.map(async ({ url, label }) => {
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(10_000),
+      const response = await statusFetch(url, {
+        signal,
         redirect: "manual",
         headers: {
           "User-Agent": "IP-Tools/1.0",
@@ -270,7 +283,7 @@ async function probeReachability(
   };
 }
 
-export async function getDeepSeekStatus(options = {}) {
+export async function getDeepSeekStatus(options = {}, signal) {
   const targets = [
     { url: "https://api.deepseek.com/", label: "API 网关" },
     { url: "https://www.deepseek.com/", label: "官网" },
@@ -280,15 +293,18 @@ export async function getDeepSeekStatus(options = {}) {
     "DeepSeek 服务可访问",
     "DeepSeek 服务不可达",
     { ...options, allowNoResponse: options.rssUnavailable === true },
+    signal,
   );
 }
 
-async function probeService(service) {
+async function probeService(service, signal) {
   const targets = service.probe.map((url) => ({ url, label: url }));
   return probeReachability(
     targets,
     service.probeOkDescription ?? `${service.name} 服务可访问`,
     service.probeFailDescription ?? `${service.name} 服务不可达`,
+    {},
+    signal,
   );
 }
 
